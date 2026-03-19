@@ -300,7 +300,7 @@ func (b *Bridge) listenMax(ctx context.Context) {
 						continue
 					}
 
-					if err := b.repo.PairCrosspost(tgChannelID, maxChannelID); err != nil {
+					if err := b.repo.PairCrosspost(tgChannelID, maxChannelID, msgUpd.Message.Sender.UserId); err != nil {
 						slog.Error("crosspost pair failed", "err", err)
 						m := maxbot.NewMessage().SetChat(chatID).SetText("Ошибка при создании связки.")
 						b.maxApi.Messages.Send(ctx, m)
@@ -377,6 +377,8 @@ func (b *Bridge) handleMaxCallback(ctx context.Context, cbUpd *maxschemes.Messag
 	data := cbUpd.Callback.Payload
 	callbackID := cbUpd.Callback.CallbackID
 
+	userID := cbUpd.Callback.User.UserId
+
 	// cpd:dir:maxChatID — change direction
 	if strings.HasPrefix(data, "cpd:") {
 		parts := strings.SplitN(data, ":", 3)
@@ -389,6 +391,13 @@ func (b *Bridge) handleMaxCallback(ctx context.Context, cbUpd *maxschemes.Messag
 			return
 		}
 		if dir != "tg>max" && dir != "max>tg" && dir != "both" {
+			return
+		}
+		ownerID := b.repo.GetCrosspostOwner(maxChatID)
+		if ownerID != 0 && ownerID != userID {
+			b.maxApi.Messages.AnswerOnCallback(ctx, callbackID, &maxschemes.CallbackAnswer{
+				Notification: "Только владелец связки может изменять настройки.",
+			})
 			return
 		}
 		b.repo.SetCrosspostDirection(maxChatID, dir)
@@ -406,6 +415,13 @@ func (b *Bridge) handleMaxCallback(ctx context.Context, cbUpd *maxschemes.Messag
 	if strings.HasPrefix(data, "cpu:") {
 		maxChatID, err := strconv.ParseInt(strings.TrimPrefix(data, "cpu:"), 10, 64)
 		if err != nil {
+			return
+		}
+		ownerID := b.repo.GetCrosspostOwner(maxChatID)
+		if ownerID != 0 && ownerID != userID {
+			b.maxApi.Messages.AnswerOnCallback(ctx, callbackID, &maxschemes.CallbackAnswer{
+				Notification: "Только владелец связки может удалять.",
+			})
 			return
 		}
 		kb := b.maxApi.Messages.NewKeyboardBuilder()
@@ -428,6 +444,14 @@ func (b *Bridge) handleMaxCallback(ctx context.Context, cbUpd *maxschemes.Messag
 		if err != nil {
 			return
 		}
+		ownerID := b.repo.GetCrosspostOwner(maxChatID)
+		if ownerID != 0 && ownerID != userID {
+			b.maxApi.Messages.AnswerOnCallback(ctx, callbackID, &maxschemes.CallbackAnswer{
+				Notification: "Только владелец связки может удалять.",
+			})
+			return
+		}
+		slog.Info("MAX crosspost unlink", "maxChatID", maxChatID, "by", userID)
 		b.repo.UnpairCrosspost(maxChatID)
 		body := &maxschemes.NewMessageBody{Text: "Кросспостинг удалён."}
 		b.maxApi.Messages.AnswerOnCallback(ctx, callbackID, &maxschemes.CallbackAnswer{

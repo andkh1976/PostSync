@@ -147,10 +147,16 @@ func (r *sqliteRepo) Unpair(platform string, chatID int64) bool {
 	return n > 0
 }
 
-func (r *sqliteRepo) PairCrosspost(tgChatID, maxChatID int64) error {
-	_, err := r.db.Exec("INSERT OR REPLACE INTO crossposts (tg_chat_id, max_chat_id, created_at) VALUES (?, ?, ?)",
-		tgChatID, maxChatID, time.Now().Unix())
+func (r *sqliteRepo) PairCrosspost(tgChatID, maxChatID, ownerID int64) error {
+	_, err := r.db.Exec("INSERT OR REPLACE INTO crossposts (tg_chat_id, max_chat_id, created_at, owner_id) VALUES (?, ?, ?, ?)",
+		tgChatID, maxChatID, time.Now().Unix(), ownerID)
 	return err
+}
+
+func (r *sqliteRepo) GetCrosspostOwner(maxChatID int64) int64 {
+	var id int64
+	r.db.QueryRow("SELECT owner_id FROM crossposts WHERE max_chat_id = ?", maxChatID).Scan(&id)
+	return id
 }
 
 func (r *sqliteRepo) GetCrosspostMaxChat(tgChatID int64) (int64, string, bool) {

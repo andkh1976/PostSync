@@ -28,7 +28,8 @@ type Repository interface {
 	Unpair(platform string, chatID int64) bool
 
 	// Crosspost methods
-	PairCrosspost(tgChatID, maxChatID int64) error
+	PairCrosspost(tgChatID, maxChatID, ownerID int64) error
+	GetCrosspostOwner(maxChatID int64) int64
 	GetCrosspostMaxChat(tgChatID int64) (maxChatID int64, direction string, ok bool)
 	GetCrosspostTgChat(maxChatID int64) (tgChatID int64, direction string, ok bool)
 	ListCrossposts() []CrosspostLink

@@ -156,11 +156,17 @@ func (r *pgRepo) Unpair(platform string, chatID int64) bool {
 	return n > 0
 }
 
-func (r *pgRepo) PairCrosspost(tgChatID, maxChatID int64) error {
+func (r *pgRepo) PairCrosspost(tgChatID, maxChatID, ownerID int64) error {
 	_, err := r.db.Exec(
-		"INSERT INTO crossposts (tg_chat_id, max_chat_id, created_at) VALUES ($1, $2, $3) ON CONFLICT (tg_chat_id, max_chat_id) DO NOTHING",
-		tgChatID, maxChatID, time.Now().Unix())
+		"INSERT INTO crossposts (tg_chat_id, max_chat_id, created_at, owner_id) VALUES ($1, $2, $3, $4) ON CONFLICT (tg_chat_id, max_chat_id) DO NOTHING",
+		tgChatID, maxChatID, time.Now().Unix(), ownerID)
 	return err
+}
+
+func (r *pgRepo) GetCrosspostOwner(maxChatID int64) int64 {
+	var id int64
+	r.db.QueryRow("SELECT owner_id FROM crossposts WHERE max_chat_id = $1", maxChatID).Scan(&id)
+	return id
 }
 
 func (r *pgRepo) GetCrosspostMaxChat(tgChatID int64) (int64, string, bool) {

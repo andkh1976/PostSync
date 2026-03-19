@@ -486,6 +486,8 @@ func (b *Bridge) handleTgCallback(ctx context.Context, query *tgbotapi.CallbackQ
 	chatID := query.Message.Chat.ID
 	msgID := query.Message.MessageID
 
+	fromID := query.From.ID
+
 	// cpd:dir:maxChatID — change direction
 	if strings.HasPrefix(data, "cpd:") {
 		parts := strings.SplitN(data, ":", 3)
@@ -498,6 +500,11 @@ func (b *Bridge) handleTgCallback(ctx context.Context, query *tgbotapi.CallbackQ
 			return
 		}
 		if dir != "tg>max" && dir != "max>tg" && dir != "both" {
+			return
+		}
+		ownerID := b.repo.GetCrosspostOwner(maxChatID)
+		if ownerID != 0 && ownerID != fromID {
+			b.tgBot.Request(tgbotapi.NewCallback(query.ID, "Только владелец связки может изменять настройки."))
 			return
 		}
 		b.repo.SetCrosspostDirection(maxChatID, dir)
@@ -518,6 +525,11 @@ func (b *Bridge) handleTgCallback(ctx context.Context, query *tgbotapi.CallbackQ
 		if err != nil {
 			return
 		}
+		ownerID := b.repo.GetCrosspostOwner(maxChatID)
+		if ownerID != 0 && ownerID != fromID {
+			b.tgBot.Request(tgbotapi.NewCallback(query.ID, "Только владелец связки может удалять."))
+			return
+		}
 		kb := tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Да, удалить", fmt.Sprintf("cpuc:%d", maxChatID)),
@@ -536,6 +548,12 @@ func (b *Bridge) handleTgCallback(ctx context.Context, query *tgbotapi.CallbackQ
 		if err != nil {
 			return
 		}
+		ownerID := b.repo.GetCrosspostOwner(maxChatID)
+		if ownerID != 0 && ownerID != fromID {
+			b.tgBot.Request(tgbotapi.NewCallback(query.ID, "Только владелец связки может удалять."))
+			return
+		}
+		slog.Info("TG crosspost unlink", "maxChatID", maxChatID, "by", fromID)
 		b.repo.UnpairCrosspost(maxChatID)
 		edit := tgbotapi.NewEditMessageText(chatID, msgID, "Кросспостинг удалён.")
 		b.tgBot.Send(edit)
