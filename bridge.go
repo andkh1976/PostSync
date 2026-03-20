@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -131,15 +130,15 @@ func (b *Bridge) isCrosspostOwner(maxChatID, userID int64) bool {
 
 // tgFileURL возвращает прямой URL файла из TG — через custom API если настроен.
 func (b *Bridge) tgFileURL(fileID string) (string, error) {
-	fileURL, err := b.tgBot.GetFileDirectURL(fileID)
+	file, err := b.tgBot.GetFile(tgbotapi.FileConfig{FileID: fileID})
 	if err != nil {
 		return "", err
 	}
-	// Если custom API — заменяем api.telegram.org на наш сервер
 	if b.cfg.TgAPIURL != "" {
-		fileURL = strings.Replace(fileURL, "https://api.telegram.org", b.cfg.TgAPIURL, 1)
+		// --local mode: file_path — абсолютный путь, отдаём через nginx
+		return b.cfg.TgAPIURL + "/" + file.FilePath, nil
 	}
-	return fileURL, nil
+	return file.Link(b.tgBot.Token), nil
 }
 
 func (b *Bridge) tgWebhookPath() string {

@@ -103,7 +103,7 @@ func (b *Bridge) uploadTgMediaToMax(ctx context.Context, fileID string, uploadTy
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("tg download status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("tg download status: %d url: %s", resp.StatusCode, fileURL)
 	}
 
 	slog.Debug("TG file downloaded", "size", resp.ContentLength)
