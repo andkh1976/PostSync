@@ -61,6 +61,8 @@ type QueueItem struct {
 	AttToken  string
 	ReplyTo   string
 	Format    string
+	AttURL    string // URL медиа (для MAX→TG)
+	ParseMode string // "HTML" или ""
 	Attempts  int
 	CreatedAt int64
 	NextRetry int64

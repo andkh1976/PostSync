@@ -238,10 +238,11 @@ func (r *sqliteRepo) EnqueueSend(item *QueueItem) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	_, err := r.db.Exec(
-		`INSERT INTO send_queue (direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, attempts, created_at, next_retry)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+		`INSERT INTO send_queue (direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, att_url, parse_mode, attempts, created_at, next_retry)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
 		item.Direction, item.SrcChatID, item.DstChatID, item.SrcMsgID,
 		item.Text, item.AttType, item.AttToken, item.ReplyTo, item.Format,
+		item.AttURL, item.ParseMode,
 		item.CreatedAt, item.NextRetry,
 	)
 	return err
@@ -251,7 +252,7 @@ func (r *sqliteRepo) PeekQueue(limit int) ([]QueueItem, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	rows, err := r.db.Query(
-		`SELECT id, direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, attempts, created_at, next_retry
+		`SELECT id, direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, att_url, parse_mode, attempts, created_at, next_retry
 		 FROM send_queue WHERE next_retry <= ? ORDER BY id ASC LIMIT ?`,
 		time.Now().Unix(), limit,
 	)
@@ -264,6 +265,7 @@ func (r *sqliteRepo) PeekQueue(limit int) ([]QueueItem, error) {
 		var q QueueItem
 		if err := rows.Scan(&q.ID, &q.Direction, &q.SrcChatID, &q.DstChatID, &q.SrcMsgID,
 			&q.Text, &q.AttType, &q.AttToken, &q.ReplyTo, &q.Format,
+			&q.AttURL, &q.ParseMode,
 			&q.Attempts, &q.CreatedAt, &q.NextRetry); err != nil {
 			return nil, err
 		}

@@ -244,10 +244,11 @@ func (r *pgRepo) ListUsers(platform string) ([]int64, error) {
 
 func (r *pgRepo) EnqueueSend(item *QueueItem) error {
 	_, err := r.db.Exec(
-		`INSERT INTO send_queue (direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, attempts, created_at, next_retry)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, $10, $11)`,
+		`INSERT INTO send_queue (direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, att_url, parse_mode, attempts, created_at, next_retry)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, $12, $13)`,
 		item.Direction, item.SrcChatID, item.DstChatID, item.SrcMsgID,
 		item.Text, item.AttType, item.AttToken, item.ReplyTo, item.Format,
+		item.AttURL, item.ParseMode,
 		item.CreatedAt, item.NextRetry,
 	)
 	return err
@@ -255,7 +256,7 @@ func (r *pgRepo) EnqueueSend(item *QueueItem) error {
 
 func (r *pgRepo) PeekQueue(limit int) ([]QueueItem, error) {
 	rows, err := r.db.Query(
-		`SELECT id, direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, attempts, created_at, next_retry
+		`SELECT id, direction, src_chat_id, dst_chat_id, src_msg_id, text, att_type, att_token, reply_to, format, att_url, parse_mode, attempts, created_at, next_retry
 		 FROM send_queue WHERE next_retry <= $1 ORDER BY id ASC LIMIT $2`,
 		time.Now().Unix(), limit,
 	)
@@ -268,6 +269,7 @@ func (r *pgRepo) PeekQueue(limit int) ([]QueueItem, error) {
 		var q QueueItem
 		if err := rows.Scan(&q.ID, &q.Direction, &q.SrcChatID, &q.DstChatID, &q.SrcMsgID,
 			&q.Text, &q.AttType, &q.AttToken, &q.ReplyTo, &q.Format,
+			&q.AttURL, &q.ParseMode,
 			&q.Attempts, &q.CreatedAt, &q.NextRetry); err != nil {
 			return nil, err
 		}

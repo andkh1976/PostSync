@@ -565,6 +565,7 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 	var sent tgbotapi.Message
 	var sendErr error
 	mediaSent := false
+	var qAttType, qAttURL string // для очереди при ошибке
 
 	// Определяем HTML caption если есть markups (для кросспостинга)
 	htmlCaption := caption
@@ -577,6 +578,7 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 		switch a := att.(type) {
 		case *maxschemes.PhotoAttachment:
 			if a.Payload.Url != "" {
+				qAttType, qAttURL = "photo", a.Payload.Url
 				photo := tgbotapi.NewPhoto(tgChatID, tgbotapi.FileURL(a.Payload.Url))
 				photo.Caption = htmlCaption
 				if useHTML {
@@ -588,6 +590,7 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 			}
 		case *maxschemes.VideoAttachment:
 			if a.Payload.Url != "" {
+				qAttType, qAttURL = "video", a.Payload.Url
 				video := tgbotapi.NewVideo(tgChatID, tgbotapi.FileURL(a.Payload.Url))
 				video.Caption = htmlCaption
 				if useHTML {
@@ -599,6 +602,7 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 			}
 		case *maxschemes.AudioAttachment:
 			if a.Payload.Url != "" {
+				qAttType, qAttURL = "audio", a.Payload.Url
 				audio := tgbotapi.NewAudio(tgChatID, tgbotapi.FileURL(a.Payload.Url))
 				audio.Caption = htmlCaption
 				if useHTML {
@@ -610,6 +614,7 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 			}
 		case *maxschemes.FileAttachment:
 			if a.Payload.Url != "" {
+				qAttType, qAttURL = "file", a.Payload.Url
 				doc := tgbotapi.NewDocument(tgChatID, tgbotapi.FileURL(a.Payload.Url))
 				doc.Caption = htmlCaption
 				if useHTML {
@@ -621,6 +626,7 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 			}
 		case *maxschemes.StickerAttachment:
 			if a.Payload.Url != "" {
+				qAttType, qAttURL = "sticker", a.Payload.Url
 				photo := tgbotapi.NewPhoto(tgChatID, tgbotapi.FileURL(a.Payload.Url))
 				photo.Caption = htmlCaption
 				if useHTML {
@@ -657,9 +663,13 @@ func (b *Bridge) forwardMaxToTg(ctx context.Context, msgUpd *maxschemes.MessageC
 
 	if sendErr != nil {
 		slog.Error("MAX→TG send failed", "err", sendErr, "uid", msgUpd.Message.Sender.UserId, "maxChat", chatID, "tgChat", tgChatID)
+		parseMode := ""
+		if useHTML {
+			parseMode = "HTML"
+		}
+		b.enqueueMax2Tg(chatID, tgChatID, body.Mid, htmlCaption, qAttType, qAttURL, parseMode)
 		if b.cbFail(tgChatID) {
-			m := maxbot.NewMessage().SetChat(chatID).SetText(
-				fmt.Sprintf("Не удалось переслать в Telegram. Пересылка приостановлена на %d мин. Проверьте, что бот добавлен в TG-чат.", int(cbCooldown.Minutes())))
+			m := maxbot.NewMessage().SetChat(chatID).SetText("TG API недоступен. Сообщения в очереди, будут доставлены автоматически.")
 			b.maxApi.Messages.Send(ctx, m)
 		}
 	} else {
