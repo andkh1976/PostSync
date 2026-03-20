@@ -12,3 +12,5 @@ max-telegram-bridge-bot
 # Environment
 .env
 deploy.sh
+backup.sh
+backup-cleanup.sh
