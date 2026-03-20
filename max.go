@@ -22,7 +22,12 @@ func (b *Bridge) listenMax(ctx context.Context) {
 		whURL := strings.TrimRight(b.cfg.WebhookURL, "/") + whPath
 		ch := make(chan maxschemes.UpdateInterface, 100)
 		http.HandleFunc(whPath, b.maxApi.GetHandler(ch))
-		if _, err := b.maxApi.Subscriptions.Subscribe(ctx, whURL, nil, ""); err != nil {
+		updateTypes := []string{
+			"message_created", "message_edited", "message_removed",
+			"message_callback", "bot_added", "bot_removed",
+			"user_added", "user_removed", "chat_title_changed",
+		}
+		if _, err := b.maxApi.Subscriptions.Subscribe(ctx, whURL, updateTypes, ""); err != nil {
 			slog.Error("MAX webhook subscribe failed", "err", err)
 			return
 		}
