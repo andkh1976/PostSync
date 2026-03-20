@@ -14,3 +14,5 @@ max-telegram-bridge-bot
 deploy.sh
 backup.sh
 backup-cleanup.sh
+bearlogin-bridge
+bridge.db.bak
