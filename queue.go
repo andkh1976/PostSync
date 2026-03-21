@@ -112,7 +112,7 @@ func (b *Bridge) processQueueTg2Max(ctx context.Context, item QueueItem, now tim
 	if err != nil {
 		errStr := err.Error()
 		// Permanent errors — дропаем
-		if strings.Contains(errStr, "403") || strings.Contains(errStr, "404") || strings.Contains(errStr, "chat.denied") {
+		if strings.Contains(errStr, "403") || strings.Contains(errStr, "404") || strings.Contains(errStr, "chat.denied") || strings.Contains(errStr, "attachment.not.ready after") {
 			slog.Warn("queue item dropped (permanent error)", "id", item.ID, "err", errStr)
 			b.repo.DeleteFromQueue(item.ID)
 			return
