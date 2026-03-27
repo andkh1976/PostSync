@@ -267,8 +267,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
 			// /bridge prefix on/off
 			if text == "/bridge prefix on" || text == "/bridge prefix off" {
-				if msg.From != nil && !b.isUserAllowed(msg.From.ID) {
-					slog.Debug("TG user not allowed", "uid", msg.From.ID)
+				if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
 					continue
 				}
 				if isGroup && !isAdmin {
@@ -290,8 +289,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
 			// /bridge или /bridge <key>
 			if text == "/bridge" || strings.HasPrefix(text, "/bridge ") {
-				if msg.From != nil && !b.isUserAllowed(msg.From.ID) {
-					slog.Debug("TG user not allowed", "uid", msg.From.ID)
+				if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
 					continue
 				}
 				if isGroup && !isAdmin {
@@ -325,7 +323,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 					b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
 					continue
 				}
-				if !b.isUserAllowed(tgUserID(msg)) {
+				if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
 					continue
 				}
 				if b.repo.Unpair("tg", msg.Chat.ID) {
