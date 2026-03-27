@@ -194,8 +194,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
 			// /crosspost в личке TG — показать список связок
 			if msg.Chat.Type == "private" && text == "/crosspost" {
-				if !b.isUserAllowed(msg.From.ID) {
-					slog.Debug("TG user not allowed", "uid", msg.From.ID)
+				if !b.checkUserAllowed(msg.Chat.ID, msg.From.ID) {
 					continue
 				}
 				links := b.repo.ListCrossposts(msg.From.ID)
@@ -222,8 +221,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
 			// Пересланное сообщение из канала → показать ID или управление (только в личке)
 			if msg.Chat.Type == "private" && msg.ForwardFromChat != nil && msg.ForwardFromChat.Type == "channel" {
-				if !b.isUserAllowed(msg.From.ID) {
-					slog.Debug("TG user not allowed", "uid", msg.From.ID)
+				if !b.checkUserAllowed(msg.Chat.ID, msg.From.ID) {
 					continue
 				}
 				channelID := msg.ForwardFromChat.ID
