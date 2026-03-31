@@ -19,6 +19,9 @@
 - Кросспостинг каналов с выбором направления (`tg>max`, `max>tg`, `both`)
 - Сохранение форматирования при кросспостинге (жирный, курсив, код, ссылки, зачёркнутый, подчёркнутый)
 - Управление кросспостингом через inline-кнопки
+- **Автозамены текста** при пересылке — поддержка строк и регулярных выражений, отдельно для ссылок
+- **Ретроспективная синхронизация** — скачивание истории TG-канала за произвольный период через Telegram MTProto (User API)
+- **Mini App** — веб-интерфейс управления внутри Telegram и MAX: связки, ретро-синхронизация, профиль, прогресс задач
 - SQLite или PostgreSQL для хранения связок и маппинга сообщений
 
 ### Форматирование при кросспостинге
@@ -74,9 +77,11 @@ POSTGRES_DB=bridge
 ```bash
 git clone https://github.com/BEARlogin/max-telegram-bridge-bot.git
 cd max-telegram-bridge-bot
-go build -o max-telegram-bridge-bot .
+CGO_ENABLED=1 go build -o max-telegram-bridge-bot .
 ./max-telegram-bridge-bot
 ```
+
+> **Важно:** флаг `CGO_ENABLED=1` обязателен — проект использует SQLite через CGo. Убедитесь, что установлены `gcc` и стандартные заголовки C (`build-essential` на Debian/Ubuntu, `base-devel` на Arch).
 
 ## Быстрый старт
 
@@ -167,7 +172,7 @@ export MAX_TOKEN=your_token
 | `DATABASE_URL` | DSN для PostgreSQL (если задана — SQLite игнорируется) | — |
 | `TG_BOT_URL` | Ссылка на TG-бота (показывается в `/help`) | `https://t.me/MaxTelegramBridgeBot` |
 | `MAX_BOT_URL` | Ссылка на MAX-бота (показывается в `/help`) | `https://max.ru/id710708943262_bot` |
-| `WEBHOOK_URL` | Базовый URL для webhook, например `https://bridge.example.com` (если не задан — long polling). Эндпоинты: `/tg-webhook`, `/max-webhook` | — |
+| `WEBHOOK_URL` | Базовый URL для webhook, например `https://bridge.example.com` (если не задан — long polling). Пути вебхуков содержат случайный суффикс для безопасности: `/tg-webhook-<hash>` и `/max-webhook-<hash>` — актуальные пути выводятся в лог при старте | — |
 | `WEBHOOK_PORT` | Порт для webhook сервера | `8443` |
 | `LOG_LEVEL` | Уровень логирования: `debug`, `info`, `warn`, `error` | `info` |
 | `TG_API_URL` | URL локального [Telegram Bot API сервера](https://github.com/tdlib/telegram-bot-api), например `http://localhost:8081`. Снимает лимиты на размер файлов | — |
@@ -208,13 +213,15 @@ Mini App — веб-интерфейс управления мостом, отк
 
 ### Запуск
 
-Mini App автоматически запускается вместе с основным процессом и доступна по пути `/app/`:
+Mini App автоматически запускается вместе с основным процессом — HTTP-сервер всегда поднимается на порту `WEBHOOK_PORT` (по умолчанию `8443`), независимо от режима работы (polling или webhook).
+
+Интерфейс доступен по пути `/app/`:
 
 ```
-https://your-domain.com/app/
+https://your-domain.com:8443/app/
 ```
 
-Для работы через вебхук укажите `WEBHOOK_URL` и настройте кнопку WebApp в BotFather.
+Чтобы открыть Mini App кнопкой прямо из бота — задайте `MINI_APP_URL` и настройте WebApp-кнопку в BotFather (для Telegram) или в настройках MAX-бота.
 
 ### Разделы Mini App
 
