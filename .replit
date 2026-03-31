@@ -21,9 +21,9 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "CGO_ENABLED=1 go run . 2>&1"
-
-[workflows.workflow.metadata]
-outputType = "console"
