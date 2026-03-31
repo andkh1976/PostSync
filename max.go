@@ -465,7 +465,46 @@ func (b *Bridge) listenMax(ctx context.Context) {
                                 continue
                         }
 
-                        // Пересылка MAX→TG отключена (управление через Mini App)
+                        // --- MAX→TG forwarding disabled (managed via Mini App) ---
+                        // // Пересылка (bridge)
+                        // tgChatID, linked := b.repo.GetTgChat(chatID)
+                        // if linked && !msgUpd.Message.Sender.IsBot {
+                        //      // Anti-loop
+                        //      if !strings.HasPrefix(text, "[TG]") && !strings.HasPrefix(text, "[MAX]") {
+                        //              prefix := b.repo.HasPrefix("max", chatID)
+                        //              caption := formatMaxCaption(msgUpd, prefix, b.cfg.MessageNewline)
+                        //              go b.forwardMaxToTg(ctx, msgUpd, tgChatID, caption)
+                        //      }
+                        //      continue
+                        // }
+                        //
+                        // // Пересылка (crosspost fallback)
+                        // if msgUpd.Message.Sender.IsBot {
+                        //      continue
+                        // }
+                        // tgChatID, direction, cpLinked := b.repo.GetCrosspostTgChat(chatID)
+                        // if !cpLinked {
+                        //      continue
+                        // }
+                        // if direction == "tg>max" {
+                        //      continue // только TG→MAX, пропускаем
+                        // }
+                        //
+                        // // Anti-loop
+                        // if strings.HasPrefix(text, "[TG]") || strings.HasPrefix(text, "[MAX]") {
+                        //      continue
+                        // }
+                        //
+                        // caption := formatMaxCrosspostCaption(msgUpd)
+                        //
+                        // // Применяем замены для MAX→TG
+                        // repl := b.repo.GetCrosspostReplacements(chatID)
+                        // if len(repl.MaxToTg) > 0 {
+                        //      caption = applyReplacements(caption, repl.MaxToTg)
+                        // }
+                        //
+                        // go b.forwardMaxToTg(ctx, msgUpd, tgChatID, caption)
+                        // --- конец отключённого блока MAX→TG ---
                 }
         }
 }
