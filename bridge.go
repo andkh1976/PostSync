@@ -262,9 +262,10 @@ func (b *Bridge) maxWebhookPath() string {
 func (b *Bridge) registerCommands() {
         // Команды для групп и личных чатов
         groupCmds := tgbotapi.NewSetMyCommands(
-                tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
-                tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
-                tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
+                // DEPRECATED (Sprint 4 Correction): legacy команды отключены, управление через Mini App
+                // tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
+                // tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
+                // tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
                 tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
         )
         if _, err := b.tgBot.Request(groupCmds); err != nil {
@@ -274,9 +275,10 @@ func (b *Bridge) registerCommands() {
         // Команды для админов (группы + каналы)
         channelCmds := tgbotapi.NewSetMyCommandsWithScope(
                 tgbotapi.NewBotCommandScopeAllChatAdministrators(),
-                tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
-                tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
-                tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
+                // DEPRECATED (Sprint 4 Correction): legacy команды отключены, управление через Mini App
+                // tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
+                // tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
+                // tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
                 tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
         )
         if _, err := b.tgBot.Request(channelCmds); err != nil {

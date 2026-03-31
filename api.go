@@ -54,6 +54,19 @@ type apiSettingsPatchRequest struct {
         Direction  *string `json:"direction,omitempty"`
 }
 
+// apiPairRequest — тело запроса для POST /api/channels/pair.
+// Sprint 4 Correction: заменяет ручной процесс /crosspost из бота.
+type apiPairRequest struct {
+        TgChatID  int64 `json:"tg_chat_id"`
+        MaxChatID int64 `json:"max_chat_id"`
+}
+
+// apiUnpairRequest — тело запроса для DELETE /api/channels.
+// Sprint 4 Correction: заменяет ручной /unbridge.
+type apiUnpairRequest struct {
+        MaxChatID int64 `json:"max_chat_id"`
+}
+
 // validateTgInitData проверяет подлинность Telegram Mini App initData.
 // Возвращает userID из initData или ошибку.
 func validateTgInitData(initData, botToken string) (int64, error) {
@@ -567,6 +580,187 @@ func (b *Bridge) handleAPITasks(w http.ResponseWriter, r *http.Request) {
         writeJSON(w, http.StatusOK, result)
 }
 
+// handleAPIChannelsPair — POST /api/channels/pair (Sprint 4 Correction)
+// Создаёт новую связку каналов TG ↔ MAX. Заменяет ручной процесс /crosspost из бота.
+// Тело запроса: {"tg_chat_id": <int64>, "max_chat_id": <int64>}
+func (b *Bridge) handleAPIChannelsPair(w http.ResponseWriter, r *http.Request) {
+        if r.Method == http.MethodOptions {
+                w.Header().Set("Access-Control-Allow-Origin", "*")
+                w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+                w.WriteHeader(http.StatusNoContent)
+                return
+        }
+        if r.Method != http.MethodPost {
+                writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+                return
+        }
+
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                slog.Warn("API /channels/pair auth failed", "err", err, "ip", r.RemoteAddr)
+                writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        var req apiPairRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid JSON body")
+                return
+        }
+        if req.TgChatID == 0 || req.MaxChatID == 0 {
+                writeError(w, http.StatusBadRequest, "tg_chat_id and max_chat_id are required")
+                return
+        }
+
+        // Проверяем, не связан ли MAX-канал уже
+        if _, _, ok := b.repo.GetCrosspostTgChat(req.MaxChatID, 0); ok {
+                writeError(w, http.StatusConflict, "max channel already paired")
+                return
+        }
+
+        // Владелец со стороны TG не известен при API-паринге — передаём 0
+        if err := b.repo.PairCrosspost(req.TgChatID, req.MaxChatID, owner.UserID, 0); err != nil {
+                slog.Error("API /channels/pair failed", "err", err, "owner", owner.UserID)
+                writeError(w, http.StatusInternalServerError, "failed to create pair")
+                return
+        }
+
+        slog.Info("API /channels/pair created", "owner", owner.UserID, "platform", owner.Platform,
+                "tgChat", req.TgChatID, "maxChat", req.MaxChatID)
+        writeJSON(w, http.StatusCreated, map[string]interface{}{
+                "tg_chat_id":  req.TgChatID,
+                "max_chat_id": req.MaxChatID,
+                "direction":   "tg>max",
+        })
+}
+
+// handleAPIChannelsDelete — DELETE /api/channels (Sprint 4 Correction)
+// Удаляет связку каналов. Заменяет ручную команду /crosspost delete из бота.
+// Тело запроса: {"max_chat_id": <int64>}
+func (b *Bridge) handleAPIChannelsDelete(w http.ResponseWriter, r *http.Request) {
+        if r.Method == http.MethodOptions {
+                w.Header().Set("Access-Control-Allow-Origin", "*")
+                w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+                w.WriteHeader(http.StatusNoContent)
+                return
+        }
+        if r.Method != http.MethodDelete {
+                writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+                return
+        }
+
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                slog.Warn("API DELETE /channels auth failed", "err", err, "ip", r.RemoteAddr)
+                writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        var req apiUnpairRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid JSON body")
+                return
+        }
+        if req.MaxChatID == 0 {
+                writeError(w, http.StatusBadRequest, "max_chat_id is required")
+                return
+        }
+
+        // Проверяем владение связкой
+        if _, _, ok := b.repo.GetCrosspostTgChat(req.MaxChatID, owner.UserID); !ok {
+                writeError(w, http.StatusForbidden, "crosspost pair not found or access denied")
+                return
+        }
+
+        if ok := b.repo.UnpairCrosspost(req.MaxChatID, owner.UserID); !ok {
+                writeError(w, http.StatusNotFound, "pair not found")
+                return
+        }
+
+        slog.Info("API DELETE /channels done", "owner", owner.UserID, "platform", owner.Platform, "maxChat", req.MaxChatID)
+        writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleAPIReplacements — GET /api/replacements и POST /api/replacements (Sprint 4 Correction)
+// GET: возвращает список автозамен для связки. POST: добавляет новую автозамену.
+// Параметр: ?max_chat_id=<int64>
+func (b *Bridge) handleAPIReplacements(w http.ResponseWriter, r *http.Request) {
+        if r.Method == http.MethodOptions {
+                w.Header().Set("Access-Control-Allow-Origin", "*")
+                w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+                w.WriteHeader(http.StatusNoContent)
+                return
+        }
+
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                slog.Warn("API /replacements auth failed", "err", err, "ip", r.RemoteAddr)
+                writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        maxChatIDStr := r.URL.Query().Get("max_chat_id")
+        if maxChatIDStr == "" {
+                writeError(w, http.StatusBadRequest, "max_chat_id query param required")
+                return
+        }
+        var maxChatID int64
+        if _, err := fmt.Sscanf(maxChatIDStr, "%d", &maxChatID); err != nil || maxChatID == 0 {
+                writeError(w, http.StatusBadRequest, "invalid max_chat_id")
+                return
+        }
+
+        // Проверяем владение связкой
+        if _, _, ok := b.repo.GetCrosspostTgChat(maxChatID, owner.UserID); !ok {
+                writeError(w, http.StatusForbidden, "crosspost pair not found or access denied")
+                return
+        }
+
+        switch r.Method {
+        case http.MethodGet:
+                repl := b.repo.GetCrosspostReplacements(maxChatID)
+                writeJSON(w, http.StatusOK, repl)
+
+        case http.MethodPost:
+                var body struct {
+                        Direction string `json:"direction"`
+                        From      string `json:"from"`
+                        To        string `json:"to"`
+                        Regex     bool   `json:"regex"`
+                        Target    string `json:"target"`
+                }
+                if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+                        writeError(w, http.StatusBadRequest, "invalid JSON body")
+                        return
+                }
+                if body.Direction != "tg>max" && body.Direction != "max>tg" {
+                        writeError(w, http.StatusBadRequest, "direction must be tg>max or max>tg")
+                        return
+                }
+                if body.From == "" {
+                        writeError(w, http.StatusBadRequest, "from is required")
+                        return
+                }
+                rule := Replacement{From: body.From, To: body.To, Regex: body.Regex, Target: body.Target}
+                repl := b.repo.GetCrosspostReplacements(maxChatID)
+                if body.Direction == "tg>max" {
+                        repl.TgToMax = append(repl.TgToMax, rule)
+                } else {
+                        repl.MaxToTg = append(repl.MaxToTg, rule)
+                }
+                if err := b.repo.SetCrosspostReplacements(maxChatID, repl); err != nil {
+                        slog.Error("API /replacements save failed", "err", err, "owner", owner.UserID)
+                        writeError(w, http.StatusInternalServerError, "failed to save replacement")
+                        return
+                }
+                slog.Info("API /replacements added", "owner", owner.UserID, "maxChat", maxChatID, "dir", body.Direction)
+                writeJSON(w, http.StatusCreated, repl)
+
+        default:
+                writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+        }
+}
+
 // registerAPIRoutes регистрирует маршруты API на указанном ServeMux.
 // Вызывается из Bridge.Run() перед запуском HTTP-сервера.
 func (b *Bridge) registerAPIRoutes(mux *http.ServeMux) {
@@ -583,6 +777,10 @@ func (b *Bridge) registerAPIRoutes(mux *http.ServeMux) {
         // Sprint 4: новые эндпоинты для профиля и списка задач
         mux.HandleFunc("/api/profile", b.handleAPIProfile)
         mux.HandleFunc("/api/tasks", b.handleAPITasks)
+        // Sprint 4 Correction: Mini App управляет связками напрямую через API
+        mux.HandleFunc("/api/channels/pair", b.handleAPIChannelsPair)
+        mux.HandleFunc("/api/channels/delete", b.handleAPIChannelsDelete)
+        mux.HandleFunc("/api/replacements", b.handleAPIReplacements)
 }
 
 // startHTTPServer запускает HTTP-сервер с регистрацией вебхуков и API.

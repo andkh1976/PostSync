@@ -52,6 +52,20 @@ A bridge bot between Telegram and the MAX messenger. Forwards messages, media, f
 | `MINI_APP_URL` | Mini App public URL (shows button in bots) | — |
 | `MINI_APP_DIR` | Path to frontend static files | `frontend` |
 
+## Sprint 4 Correction: Legacy Commands Disabled, Mini App API Completed
+
+### Changes (Sprint 4 Correction)
+
+- **bridge.go** `registerCommands`: `/bridge`, `/unbridge`, `/crosspost` removed from Telegram bot command menu (only `/help` remains). DEPRECATED comments in place.
+- **telegram.go**: `/bridge`, `/unbridge`, `/crosspost`, manual channel-ID forwarding blocks all commented out (DEPRECATED). Admin-check block commented out (no longer needed).
+- **max.go**: `/bridge`, `/unbridge`, `/crosspost <TG_ID>`, manual forward-pairing blocks all commented out (DEPRECATED). `forwardMaxToTg` function and all its calls fully commented out — MAX→TG forwarding disabled. Admin-check block commented out.
+- **api.go** — 3 new endpoints added:
+  - `POST /api/channels/pair` — create a crosspost pair (replaces manual `/crosspost` bot flow)
+  - `DELETE /api/channels` (via `/api/channels/delete`) — remove a crosspost pair
+  - `GET/POST /api/replacements` — read and add auto-replacement rules for a pair
+- **README.md** "Быстрый старт" updated: manual `/crosspost` + forward flow replaced with one-click Mini App pairing instructions.
+- **bridge.go** `checkAccess`: already correct — returns `true` for all users, real billing logic remains commented.
+
 ## Sprint 4: Billing Stubs, Mini App Polish, Documentation
 
 ### checkAccess (bridge.go)

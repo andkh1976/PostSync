@@ -206,185 +206,163 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                 }
                         }
 
-                        // /crosspost в личке TG — показать список связок
-                        if msg.Chat.Type == "private" && text == "/crosspost" {
-                                if !b.checkUserAllowed(msg.Chat.ID, msg.From.ID) {
-                                        continue
-                                }
-                                links := b.repo.ListCrossposts(msg.From.ID)
-                                if len(links) == 0 {
-                                        noLinksMsg := tgbotapi.NewMessage(msg.Chat.ID,
-                                                "Нет активных связок.\n\nНастройка: перешлите пост из TG-канала сюда, затем в MAX-боте /crosspost <ID>")
-                                        // Sprint 3: кнопка Mini App если настроен
-                                        if b.cfg.MiniAppURL != "" {
-                                                noLinksMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                        tgbotapi.NewInlineKeyboardRow(
-                                                                tgbotapi.NewInlineKeyboardButtonURL("⚙️ Панель управления",
-                                                                        b.cfg.MiniAppURL),
-                                                        ),
-                                                )
-                                        }
-                                        b.tgBot.Send(noLinksMsg)
-                                } else {
-                                        for _, l := range links {
-                                                tgTitle := b.tgChatTitle(l.TgChatID)
-                                                statusText := tgCrosspostStatusText(tgTitle, l.Direction)
-                                                if tgTitle == "" {
-                                                        statusText += fmt.Sprintf("\nTG: %d ↔ MAX: %d", l.TgChatID, l.MaxChatID)
-                                                } else {
-                                                        statusText += fmt.Sprintf("\nTG: «%s» (%d)\nMAX: %d", tgTitle, l.TgChatID, l.MaxChatID)
-                                                }
-                                                m := tgbotapi.NewMessage(msg.Chat.ID, statusText)
-                                                // Sprint 3: заменяем старую кнопку "⚙️ Настройки" на кнопку Mini App WebApp
-                                                if b.cfg.MiniAppURL != "" {
-                                                        m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                                tgbotapi.NewInlineKeyboardRow(
-                                                                        tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
-                                                                                b.cfg.MiniAppURL),
-                                                                ),
-                                                        )
-                                                } else {
-                                                        // DEPRECATED (Sprint 3): старая кнопка настроек (inline callback)
-                                                        // m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                        //     tgbotapi.NewInlineKeyboardRow(
-                                                        //         tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", "settings"),
-                                                        //     ),
-                                                        // )
-                                                }
-                                                b.tgBot.Send(m)
-                                        }
-                                }
-                                continue
-                        }
+                        // DEPRECATED (Sprint 4 Correction): /crosspost список — управление перенесено в Mini App
+                        // if msg.Chat.Type == "private" && text == "/crosspost" {
+                        //      if !b.checkUserAllowed(msg.Chat.ID, msg.From.ID) {
+                        //              continue
+                        //      }
+                        //      links := b.repo.ListCrossposts(msg.From.ID)
+                        //      if len(links) == 0 {
+                        //              noLinksMsg := tgbotapi.NewMessage(msg.Chat.ID,
+                        //                      "Нет активных связок.\n\nНастройка: перешлите пост из TG-канала сюда, затем в MAX-боте /crosspost <ID>")
+                        //              if b.cfg.MiniAppURL != "" {
+                        //                      noLinksMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                        //                              tgbotapi.NewInlineKeyboardRow(
+                        //                                      tgbotapi.NewInlineKeyboardButtonURL("⚙️ Панель управления",
+                        //                                              b.cfg.MiniAppURL),
+                        //                              ),
+                        //                      )
+                        //              }
+                        //              b.tgBot.Send(noLinksMsg)
+                        //      } else {
+                        //              for _, l := range links {
+                        //                      tgTitle := b.tgChatTitle(l.TgChatID)
+                        //                      statusText := tgCrosspostStatusText(tgTitle, l.Direction)
+                        //                      if tgTitle == "" {
+                        //                              statusText += fmt.Sprintf("\nTG: %d ↔ MAX: %d", l.TgChatID, l.MaxChatID)
+                        //                      } else {
+                        //                              statusText += fmt.Sprintf("\nTG: «%s» (%d)\nMAX: %d", tgTitle, l.TgChatID, l.MaxChatID)
+                        //                      }
+                        //                      m := tgbotapi.NewMessage(msg.Chat.ID, statusText)
+                        //                      if b.cfg.MiniAppURL != "" {
+                        //                              m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                        //                                      tgbotapi.NewInlineKeyboardRow(
+                        //                                              tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
+                        //                                                      b.cfg.MiniAppURL),
+                        //                                      ),
+                        //                              )
+                        //                      }
+                        //                      b.tgBot.Send(m)
+                        //              }
+                        //      }
+                        //      continue
+                        // }
 
-                        // Пересланное сообщение из канала → показать ID или управление (только в личке)
-                        if msg.Chat.Type == "private" && msg.ForwardFromChat != nil && msg.ForwardFromChat.Type == "channel" {
-                                if !b.checkUserAllowed(msg.Chat.ID, msg.From.ID) {
-                                        continue
-                                }
-                                channelID := msg.ForwardFromChat.ID
-                                channelTitle := msg.ForwardFromChat.Title
+                        // DEPRECATED (Sprint 4 Correction): ручной ввод ID для настройки crosspost заменён Mini App
+                        // if msg.Chat.Type == "private" && msg.ForwardFromChat != nil && msg.ForwardFromChat.Type == "channel" {
+                        //      if !b.checkUserAllowed(msg.Chat.ID, msg.From.ID) {
+                        //              continue
+                        //      }
+                        //      channelID := msg.ForwardFromChat.ID
+                        //      channelTitle := msg.ForwardFromChat.Title
+                        //      b.cpTgOwnerMu.Lock()
+                        //      b.cpTgOwner[channelID] = msg.From.ID
+                        //      b.cpTgOwnerMu.Unlock()
+                        //      slog.Info("TG crosspost forward", "tgUser", msg.From.ID, "tgChannel", channelID)
+                        //      if _, direction, ok := b.repo.GetCrosspostMaxChat(channelID, 0); ok {
+                        //              statusText := tgCrosspostStatusText(channelTitle, direction)
+                        //              m := tgbotapi.NewMessage(msg.Chat.ID, statusText)
+                        //              if b.cfg.MiniAppURL != "" {
+                        //                      m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                        //                              tgbotapi.NewInlineKeyboardRow(
+                        //                                      tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
+                        //                                              b.cfg.MiniAppURL),
+                        //                              ),
+                        //                      )
+                        //              }
+                        //              b.tgBot.Send(m)
+                        //              continue
+                        //      }
+                        //      cpMsg := tgbotapi.NewMessage(msg.Chat.ID,
+                        //              fmt.Sprintf("TG-канал «%s»\nID: <code>%d</code>\n\nВ личке MAX-бота напишите:\n<code>/crosspost %d</code>\n\nMAX-бот: %s\n\nЗатем перешлите пост из MAX-канала в личку MAX-бота.", channelTitle, channelID, channelID, b.cfg.MaxBotURL))
+                        //      cpMsg.ParseMode = "HTML"
+                        //      b.tgBot.Send(cpMsg)
+                        //      continue
+                        // }
 
-                                // Запоминаем TG user ID для этого канала (для owner при pairing)
-                                b.cpTgOwnerMu.Lock()
-                                b.cpTgOwner[channelID] = msg.From.ID
-                                b.cpTgOwnerMu.Unlock()
-                                slog.Info("TG crosspost forward", "tgUser", msg.From.ID, "tgChannel", channelID)
+                        // DEPRECATED (Sprint 4 Correction): проверка прав админа не нужна — legacy команды отключены
+                        // isGroup := isTgGroup(msg.Chat.Type)
+                        // isAdmin := false
+                        // if isGroup && msg.From != nil {
+                        //      member, err := b.tgBot.GetChatMember(tgbotapi.GetChatMemberConfig{
+                        //              ChatConfigWithUser: tgbotapi.ChatConfigWithUser{
+                        //                      ChatID: msg.Chat.ID,
+                        //                      UserID: msg.From.ID,
+                        //              },
+                        //      })
+                        //      if err == nil {
+                        //              isAdmin = isTgAdmin(member.Status)
+                        //      }
+                        // }
 
-                                // Проверяем, уже связан ли канал
-                                if _, direction, ok := b.repo.GetCrosspostMaxChat(channelID, 0); ok {
-                                        statusText := tgCrosspostStatusText(channelTitle, direction)
-                                        m := tgbotapi.NewMessage(msg.Chat.ID, statusText)
-                                        // Sprint 3: используем кнопку Mini App вместо inline callback
-                                        if b.cfg.MiniAppURL != "" {
-                                                m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                        tgbotapi.NewInlineKeyboardRow(
-                                                                tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
-                                                                        b.cfg.MiniAppURL),
-                                                        ),
-                                                )
-                                        } else {
-                                                // DEPRECATED (Sprint 3): старая кнопка настроек (inline callback)
-                                                // m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                //     tgbotapi.NewInlineKeyboardRow(
-                                                //         tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", "settings"),
-                                                //     ),
-                                                // )
-                                        }
-                                        b.tgBot.Send(m)
-                                        continue
-                                }
+                        // DEPRECATED (Sprint 4 Correction): /bridge prefix — legacy команда, управление через Mini App
+                        // if text == "/bridge prefix on" || text == "/bridge prefix off" {
+                        //      if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
+                        //              continue
+                        //      }
+                        //      if isGroup && !isAdmin {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
+                        //              continue
+                        //      }
+                        //      on := text == "/bridge prefix on"
+                        //      if b.repo.SetPrefix("tg", msg.Chat.ID, on) {
+                        //              if on {
+                        //                      b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Префикс [TG]/[MAX] включён."))
+                        //              } else {
+                        //                      b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Префикс [TG]/[MAX] выключен."))
+                        //              }
+                        //      } else {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Чат не связан. Сначала выполните /bridge."))
+                        //      }
+                        //      continue
+                        // }
 
-                                cpMsg := tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("TG-канал «%s»\nID: <code>%d</code>\n\nВ личке MAX-бота напишите:\n<code>/crosspost %d</code>\n\nMAX-бот: %s\n\nЗатем перешлите пост из MAX-канала в личку MAX-бота.", channelTitle, channelID, channelID, b.cfg.MaxBotURL))
-                                cpMsg.ParseMode = "HTML"
-                                b.tgBot.Send(cpMsg)
-                                continue
-                        }
+                        // DEPRECATED (Sprint 4 Correction): /bridge — legacy команда, управление через Mini App
+                        // if text == "/bridge" || strings.HasPrefix(text, "/bridge ") {
+                        //      if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
+                        //              continue
+                        //      }
+                        //      if isGroup && !isAdmin {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
+                        //              continue
+                        //      }
+                        //      key := strings.TrimSpace(strings.TrimPrefix(text, "/bridge"))
+                        //      paired, generatedKey, err := b.repo.Register(key, "tg", msg.Chat.ID)
+                        //      if err != nil {
+                        //              slog.Error("register failed", "err", err)
+                        //              continue
+                        //      }
+                        //      if paired {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Связано! Сообщения теперь пересылаются."))
+                        //              slog.Info("paired", "platform", "tg", "chat", msg.Chat.ID, "key", key)
+                        //      } else if generatedKey != "" {
+                        //              keyMsg := tgbotapi.NewMessage(msg.Chat.ID,
+                        //                      fmt.Sprintf("Ключ для связки: <code>%s</code>\n\nОтправьте в MAX-чате:\n<code>/bridge %s</code>\n\nMAX-бот: %s", generatedKey, generatedKey, b.cfg.MaxBotURL))
+                        //              keyMsg.ParseMode = "HTML"
+                        //              b.tgBot.Send(keyMsg)
+                        //              slog.Info("pending", "platform", "tg", "chat", msg.Chat.ID, "key", generatedKey)
+                        //      } else {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Ключ не найден или чат той же платформы."))
+                        //      }
+                        //      continue
+                        // }
 
-                        // Проверка прав админа в группах
-                        isGroup := isTgGroup(msg.Chat.Type)
-                        isAdmin := false
-                        if isGroup && msg.From != nil {
-                                member, err := b.tgBot.GetChatMember(tgbotapi.GetChatMemberConfig{
-                                        ChatConfigWithUser: tgbotapi.ChatConfigWithUser{
-                                                ChatID: msg.Chat.ID,
-                                                UserID: msg.From.ID,
-                                        },
-                                })
-                                if err == nil {
-                                        isAdmin = isTgAdmin(member.Status)
-                                }
-                        }
-
-                        // /bridge prefix on/off
-                        if text == "/bridge prefix on" || text == "/bridge prefix off" {
-                                if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
-                                        continue
-                                }
-                                if isGroup && !isAdmin {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
-                                        continue
-                                }
-                                on := text == "/bridge prefix on"
-                                if b.repo.SetPrefix("tg", msg.Chat.ID, on) {
-                                        if on {
-                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Префикс [TG]/[MAX] включён."))
-                                        } else {
-                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Префикс [TG]/[MAX] выключен."))
-                                        }
-                                } else {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Чат не связан. Сначала выполните /bridge."))
-                                }
-                                continue
-                        }
-
-                        // /bridge или /bridge <key>
-                        if text == "/bridge" || strings.HasPrefix(text, "/bridge ") {
-                                if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
-                                        continue
-                                }
-                                if isGroup && !isAdmin {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
-                                        continue
-                                }
-                                key := strings.TrimSpace(strings.TrimPrefix(text, "/bridge"))
-                                paired, generatedKey, err := b.repo.Register(key, "tg", msg.Chat.ID)
-                                if err != nil {
-                                        slog.Error("register failed", "err", err)
-                                        continue
-                                }
-
-                                if paired {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Связано! Сообщения теперь пересылаются."))
-                                        slog.Info("paired", "platform", "tg", "chat", msg.Chat.ID, "key", key)
-                                } else if generatedKey != "" {
-                                        keyMsg := tgbotapi.NewMessage(msg.Chat.ID,
-                                                fmt.Sprintf("Ключ для связки: <code>%s</code>\n\nОтправьте в MAX-чате:\n<code>/bridge %s</code>\n\nMAX-бот: %s", generatedKey, generatedKey, b.cfg.MaxBotURL))
-                                        keyMsg.ParseMode = "HTML"
-                                        b.tgBot.Send(keyMsg)
-                                        slog.Info("pending", "platform", "tg", "chat", msg.Chat.ID, "key", generatedKey)
-                                } else {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Ключ не найден или чат той же платформы."))
-                                }
-                                continue
-                        }
-
-                        if text == "/unbridge" {
-                                if isGroup && !isAdmin {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
-                                        continue
-                                }
-                                if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
-                                        continue
-                                }
-                                if b.repo.Unpair("tg", msg.Chat.ID) {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Связка удалена."))
-                                } else {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Этот чат не связан."))
-                                }
-                                continue
-                        }
+                        // DEPRECATED (Sprint 4 Correction): /unbridge — legacy команда, управление через Mini App
+                        // if text == "/unbridge" {
+                        //      if isGroup && !isAdmin {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Эта команда доступна только админам группы."))
+                        //              continue
+                        //      }
+                        //      if !b.checkUserAllowed(msg.Chat.ID, tgUserID(msg)) {
+                        //              continue
+                        //      }
+                        //      if b.repo.Unpair("tg", msg.Chat.ID) {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Связка удалена."))
+                        //      } else {
+                        //              b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Этот чат не связан."))
+                        //      }
+                        //      continue
+                        // }
 
                         // Пересылка
                         maxChatID, linked := b.repo.GetMaxChat(msg.Chat.ID)
