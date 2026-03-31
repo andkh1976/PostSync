@@ -14,6 +14,7 @@
       --danger: #dc2626;
       --danger-hover: #b91c1c;
       --success: #16a34a;
+      --warning: #d97706;
       --text: #111827;
       --muted: #6b7280;
       --border: #e5e7eb;
@@ -254,6 +255,101 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Sprint 4: Progress Bar ───────────────────────────────────────── */
+    .task-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .task-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .task-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .task-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .badge-pending    { background: #fef3c7; color: #92400e; }
+    .badge-processing { background: #dbeafe; color: #1e40af; }
+    .badge-done       { background: #d1fae5; color: #065f46; }
+    .badge-failed     { background: #fee2e2; color: #991b1b; }
+
+    @media (prefers-color-scheme: dark) {
+      .badge-pending    { background: #3d2c00; color: #fcd34d; }
+      .badge-processing { background: #1e3a5f; color: #93c5fd; }
+      .badge-done       { background: #064e3b; color: #6ee7b7; }
+      .badge-failed     { background: #450a0a; color: #fca5a5; }
+    }
+
+    .progress-bar-wrap {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-bar-fill.pending    { background: var(--warning); width: 10%; }
+    .progress-bar-fill.processing { background: var(--primary); width: 55%; animation: pulse-bar 1.5s ease-in-out infinite; }
+    .progress-bar-fill.done       { background: var(--success); width: 100%; }
+    .progress-bar-fill.failed     { background: var(--danger);  width: 100%; }
+
+    @keyframes pulse-bar {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.6; }
+    }
+
+    .task-meta {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .task-error {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--danger);
+      word-break: break-word;
+    }
+
+    /* ── Sprint 4: Profile ───────────────────────────────────────────── */
+    .profile-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .profile-row:last-child { border-bottom: none; }
+
+    .profile-label { color: var(--muted); font-size: 13px; }
+
+    .profile-value { font-weight: 600; }
+
+    .sub-active   { color: var(--success); }
+    .sub-inactive { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -261,11 +357,25 @@
 <h1>⚙️ Bridge Control Panel</h1>
 <p class="subtitle">Управление синхронизацией TG ↔ MAX</p>
 
+<!-- ── Профиль (Sprint 4) ──────────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-title"><span class="icon">👤</span> Профиль</div>
+  <div id="profile-container" class="loading"><span class="spinner"></span>Загрузка...</div>
+</div>
+
+<!-- ── Активные связки каналов ──────────────────────────────────────────── -->
 <div class="card">
   <div class="card-title"><span class="icon">🔗</span> Активные связки каналов</div>
   <div id="channels-container" class="loading"><span class="spinner"></span>Загрузка...</div>
 </div>
 
+<!-- ── Задачи синхронизации (Sprint 4) ─────────────────────────────────── -->
+<div class="card">
+  <div class="card-title"><span class="icon">⏳</span> Задачи синхронизации</div>
+  <div id="tasks-container" class="loading"><span class="spinner"></span>Загрузка...</div>
+</div>
+
+<!-- ── Ретроспективное скачивание ───────────────────────────────────────── -->
 <div class="card">
   <div class="card-title"><span class="icon">📥</span> Ретроспективное скачивание</div>
 
@@ -309,10 +419,17 @@
   if (tg) {
     tg.ready();
     tg.expand();
-    // Применяем цветовую схему Telegram
-    document.documentElement.style.setProperty('--bg',   tg.backgroundColor    || '');
-    document.documentElement.style.setProperty('--card', tg.secondaryBackgroundColor || '');
-    document.documentElement.style.setProperty('--text', tg.themeParams && tg.themeParams.text_color || '');
+
+    // Применяем цветовую схему Telegram/MAX (Sprint 4: улучшенная поддержка тем)
+    const tp = tg.themeParams || {};
+    if (tp.bg_color)              document.documentElement.style.setProperty('--bg',    tp.bg_color);
+    if (tp.secondary_bg_color)    document.documentElement.style.setProperty('--card',  tp.secondary_bg_color);
+    if (tp.text_color)            document.documentElement.style.setProperty('--text',  tp.text_color);
+    if (tp.hint_color)            document.documentElement.style.setProperty('--muted', tp.hint_color);
+    if (tp.button_color)          document.documentElement.style.setProperty('--primary', tp.button_color);
+    if (tp.button_text_color)     document.documentElement.style.setProperty('--btn-text', tp.button_text_color);
+    if (tp.destructive_text_color) document.documentElement.style.setProperty('--danger', tp.destructive_text_color);
+    if (tp.section_separator_color) document.documentElement.style.setProperty('--border', tp.section_separator_color);
   }
 
   // ─── Auth header ──────────────────────────────────────────────────────────
@@ -320,7 +437,6 @@
     if (tg && tg.initData && tg.initData.length > 0) {
       return 'tg ' + tg.initData;
     }
-    // Для локальной разработки без Telegram — показываем предупреждение
     return null;
   }
 
@@ -335,6 +451,81 @@
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'Ошибка ' + res.status);
     return body;
+  }
+
+  // ─── Profile (Sprint 4) ───────────────────────────────────────────────────
+  async function loadProfile() {
+    const container = document.getElementById('profile-container');
+    try {
+      const p = await apiFetch('/api/profile');
+      const subText = p.has_subscription
+        ? `<span class="sub-active">✓ Активна${p.subscription_end ? ' до ' + p.subscription_end.split('T')[0] : ''}</span>`
+        : '<span class="sub-inactive">Бесплатный план</span>';
+      container.innerHTML = `
+        <div class="profile-row">
+          <span class="profile-label">ID пользователя</span>
+          <span class="profile-value">${p.user_id}</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">Платформа</span>
+          <span class="profile-value">${p.platform === 'tg' ? 'Telegram' : 'MAX'}</span>
+        </div>
+        ${p.first_name ? `<div class="profile-row">
+          <span class="profile-label">Имя</span>
+          <span class="profile-value">${escHtml(p.first_name)}${p.username ? ' @' + escHtml(p.username) : ''}</span>
+        </div>` : ''}
+        <div class="profile-row">
+          <span class="profile-label">Подписка</span>
+          <span class="profile-value">${subText}</span>
+        </div>
+      `;
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state">⚠️ Откройте приложение через кнопку в боте.</div>';
+    }
+  }
+
+  // ─── Tasks / Progress Bar (Sprint 4) ──────────────────────────────────────
+  const statusLabels = { pending: 'Ожидание', processing: 'В процессе', done: 'Завершено', failed: 'Ошибка' };
+
+  async function loadTasks() {
+    const container = document.getElementById('tasks-container');
+    try {
+      const tasks = await apiFetch('/api/tasks');
+      if (!tasks || tasks.length === 0) {
+        container.innerHTML = '<div class="empty-state">Нет задач синхронизации.</div>';
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'task-list';
+      tasks.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'task-item';
+        item.innerHTML = `
+          <div class="task-header">
+            <span class="task-title">Задача #${t.id}</span>
+            <span class="task-badge badge-${t.status}">${statusLabels[t.status] || t.status}</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill ${t.status}"></div>
+          </div>
+          <div class="task-meta">
+            TG ${t.tg_chat_id} → MAX ${t.max_chat_id} &nbsp;·&nbsp; ${t.start_date} — ${t.end_date}
+          </div>
+          ${t.error ? `<div class="task-error">⚠ ${escHtml(t.error)}</div>` : ''}
+        `;
+        list.appendChild(item);
+      });
+      container.innerHTML = '';
+      container.appendChild(list);
+
+      // Автообновление если есть активные задачи
+      const hasActive = tasks.some(t => t.status === 'pending' || t.status === 'processing');
+      if (hasActive) {
+        setTimeout(loadTasks, 5000);
+      }
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state">Ошибка загрузки задач.</div>';
+    }
   }
 
   // ─── Channels ─────────────────────────────────────────────────────────────
@@ -445,6 +636,8 @@
         }),
       });
       showStatus('sync-status', `✓ Задача #${res.task_id} создана (статус: ${res.status})`, 'ok');
+      // Обновляем список задач после запуска
+      setTimeout(loadTasks, 800);
     } catch (e) {
       showStatus('sync-status', '✗ ' + e.message, 'err');
     } finally {
@@ -515,7 +708,9 @@
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────
+  loadProfile();
   loadChannels();
+  loadTasks();
 </script>
 </body>
 </html>

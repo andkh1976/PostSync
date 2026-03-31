@@ -89,7 +89,21 @@ type Repository interface {
         SetSyncTaskStatus(id int64, status, errMsg string) error
         UpdateSyncTaskLastID(id int64, lastSyncedID string) error
 
+        // Sprint 4: профиль пользователя и список задач для Mini App
+        GetUserProfile(userID int64) (*UserProfile, error)
+        ListUserSyncTasks(userID int64) ([]SyncTask, error)
+
         Close() error
+}
+
+// UserProfile — данные профиля пользователя для Mini App.
+type UserProfile struct {
+        UserID          int64      `json:"user_id"`
+        Platform        string     `json:"platform"`
+        Username        string     `json:"username"`
+        FirstName       string     `json:"first_name"`
+        SubscriptionEnd *time.Time `json:"subscription_end,omitempty"`
+        HasSubscription bool       `json:"has_subscription"`
 }
 
 // SyncTask — задача ретроспективного скачивания постов из TG-канала в MAX.

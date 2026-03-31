@@ -52,6 +52,29 @@ A bridge bot between Telegram and the MAX messenger. Forwards messages, media, f
 | `MINI_APP_URL` | Mini App public URL (shows button in bots) | — |
 | `MINI_APP_DIR` | Path to frontend static files | `frontend` |
 
+## Sprint 4: Billing Stubs, Mini App Polish, Documentation
+
+### checkAccess (bridge.go)
+- `checkAccess(userID int64) bool` — access control stub. Currently always returns `true` (full access).
+- Real subscription-check logic is **commented out** inside the function — uncomment one line to activate.
+- Commented constant `freeUserRetroSyncMsgLimit = 500` added as a placeholder for free-tier message limits.
+
+### New REST API Endpoints (api.go)
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/profile` | Return user profile: ID, platform, subscription status |
+| `GET` | `/api/tasks` | List the user's sync tasks with status (for progress bar) |
+
+### Mini App UI updates (frontend/index.html)
+- **Profile section**: shows user ID, platform, first name/username, subscription status.
+- **Progress Bar**: `sync_tasks` are displayed with per-status animated progress bars (pending/processing/done/failed).
+- **Auto-refresh**: tasks list auto-refreshes every 5 seconds when there are active tasks.
+- **Theme support**: improved Telegram/MAX theme param application — uses all `themeParams` fields for correct light/dark rendering.
+
+### New Repository methods
+- `GetUserProfile(userID int64) (*UserProfile, error)` — reads user + subscription_end from `users` table.
+- `ListUserSyncTasks(userID int64) ([]SyncTask, error)` — lists last 20 tasks for a user.
+
 ## Sprint 3: API + Mini App
 
 ### REST API Endpoints

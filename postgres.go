@@ -413,6 +413,54 @@ func (r *pgRepo) CreateSyncTask(task SyncTask) (int64, error) {
         return id, err
 }
 
+// GetUserProfile — Sprint 4: возвращает профиль пользователя из таблицы users.
+func (r *pgRepo) GetUserProfile(userID int64) (*UserProfile, error) {
+        var p UserProfile
+        var subEnd *time.Time
+        err := r.db.QueryRow(
+                `SELECT user_id, platform, COALESCE(username,''), COALESCE(first_name,''), subscription_end FROM users WHERE user_id = $1`,
+                userID,
+        ).Scan(&p.UserID, &p.Platform, &p.Username, &p.FirstName, &subEnd)
+        if err != nil {
+                return nil, err
+        }
+        if subEnd != nil {
+                p.SubscriptionEnd = subEnd
+                p.HasSubscription = subEnd.After(time.Now())
+        }
+        return &p, nil
+}
+
+// ListUserSyncTasks — Sprint 4: возвращает все задачи синхронизации пользователя.
+func (r *pgRepo) ListUserSyncTasks(userID int64) ([]SyncTask, error) {
+        rows, err := r.db.Query(
+                `SELECT id, user_id, tg_chat_id, max_chat_id, status, start_date, end_date, last_synced_id, error
+                 FROM sync_tasks WHERE user_id = $1 ORDER BY id DESC LIMIT 20`,
+                userID,
+        )
+        if err != nil {
+                return nil, err
+        }
+        defer rows.Close()
+        var tasks []SyncTask
+        for rows.Next() {
+                var t SyncTask
+                var lastID, errMsg *string
+                if err := rows.Scan(&t.ID, &t.UserID, &t.TgChatID, &t.MaxChatID, &t.Status,
+                        &t.StartDate, &t.EndDate, &lastID, &errMsg); err != nil {
+                        return nil, err
+                }
+                if lastID != nil {
+                        t.LastSyncedID = *lastID
+                }
+                if errMsg != nil {
+                        t.Error = *errMsg
+                }
+                tasks = append(tasks, t)
+        }
+        return tasks, nil
+}
+
 func (r *pgRepo) Close() error {
         return r.db.Close()
 }

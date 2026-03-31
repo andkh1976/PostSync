@@ -435,6 +435,67 @@ func (r *sqliteRepo) CreateSyncTask(task SyncTask) (int64, error) {
         return res.LastInsertId()
 }
 
+// GetUserProfile — Sprint 4: возвращает профиль пользователя из таблицы users.
+func (r *sqliteRepo) GetUserProfile(userID int64) (*UserProfile, error) {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        var p UserProfile
+        var subEnd *string
+        err := r.db.QueryRow(
+                `SELECT user_id, platform, COALESCE(username,''), COALESCE(first_name,''), subscription_end FROM users WHERE user_id = ?`,
+                userID,
+        ).Scan(&p.UserID, &p.Platform, &p.Username, &p.FirstName, &subEnd)
+        if err != nil {
+                return nil, err
+        }
+        if subEnd != nil && *subEnd != "" {
+                t, parseErr := time.Parse(time.RFC3339, *subEnd)
+                if parseErr == nil {
+                        p.SubscriptionEnd = &t
+                        p.HasSubscription = t.After(time.Now())
+                }
+        }
+        return &p, nil
+}
+
+// ListUserSyncTasks — Sprint 4: возвращает все задачи синхронизации пользователя.
+func (r *sqliteRepo) ListUserSyncTasks(userID int64) ([]SyncTask, error) {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        rows, err := r.db.Query(
+                `SELECT id, user_id, tg_chat_id, max_chat_id, status, start_date, end_date, last_synced_id, error
+                 FROM sync_tasks WHERE user_id = ? ORDER BY id DESC LIMIT 20`,
+                userID,
+        )
+        if err != nil {
+                return nil, err
+        }
+        defer rows.Close()
+        var tasks []SyncTask
+        for rows.Next() {
+                var t SyncTask
+                var startDate, endDate, lastID, errMsg *string
+                if err := rows.Scan(&t.ID, &t.UserID, &t.TgChatID, &t.MaxChatID, &t.Status,
+                        &startDate, &endDate, &lastID, &errMsg); err != nil {
+                        return nil, err
+                }
+                if startDate != nil {
+                        t.StartDate, _ = time.Parse(time.RFC3339, *startDate)
+                }
+                if endDate != nil {
+                        t.EndDate, _ = time.Parse(time.RFC3339, *endDate)
+                }
+                if lastID != nil {
+                        t.LastSyncedID = *lastID
+                }
+                if errMsg != nil {
+                        t.Error = *errMsg
+                }
+                tasks = append(tasks, t)
+        }
+        return tasks, nil
+}
+
 func (r *sqliteRepo) Close() error {
         return r.db.Close()
 }

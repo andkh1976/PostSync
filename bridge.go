@@ -205,6 +205,29 @@ func (b *Bridge) isCrosspostOwner(maxChatID, userID int64) bool {
         return userID == maxOwner || userID == tgOwner
 }
 
+// ─── Sprint 4: Billing / Access Control ───────────────────────────────────────
+
+// freeUserRetroSyncMsgLimit — лимит сообщений ретро-синхронизации для бесплатных пользователей.
+// DEPRECATED (Sprint 4): закомментировано — раскомментировать когда будет готова биллинговая логика.
+// const freeUserRetroSyncMsgLimit = 500
+
+// checkAccess проверяет доступ пользователя по подписке.
+// Sprint 4: всегда возвращает true (полный доступ).
+// Реальная логика проверки даты закомментирована — включить одной строкой когда нужно.
+func (b *Bridge) checkAccess(userID int64) bool {
+        // DEPRECATED (Sprint 4): реальная проверка подписки — раскомментировать для включения:
+        // profile, err := b.repo.GetUserProfile(userID)
+        // if err != nil {
+        //         slog.Warn("checkAccess: failed to get user profile", "userID", userID, "err", err)
+        //         return false
+        // }
+        // return profile.HasSubscription
+
+        return true // временно: полный доступ для всех
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 // tgFileURL возвращает прямой URL файла из TG — через custom API если настроен.
 func (b *Bridge) tgFileURL(fileID string) (string, error) {
         file, err := b.tgBot.GetFile(tgbotapi.FileConfig{FileID: fileID})
