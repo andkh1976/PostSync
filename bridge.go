@@ -262,11 +262,12 @@ func (b *Bridge) maxWebhookPath() string {
 func (b *Bridge) registerCommands() {
         // Команды для групп и личных чатов
         groupCmds := tgbotapi.NewSetMyCommands(
-                // DEPRECATED (Sprint 4 Correction): legacy команды отключены, управление через Mini App
+                tgbotapi.BotCommand{Command: "start", Description: "Запустить бота / открыть панель управления"},
+                tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
+                // DEPRECATED (Sprint 4 Final): legacy команды отключены, управление через Mini App
                 // tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
                 // tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
                 // tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
-                tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
         )
         if _, err := b.tgBot.Request(groupCmds); err != nil {
                 slog.Error("TG setMyCommands (default) failed", "err", err)
@@ -275,11 +276,12 @@ func (b *Bridge) registerCommands() {
         // Команды для админов (группы + каналы)
         channelCmds := tgbotapi.NewSetMyCommandsWithScope(
                 tgbotapi.NewBotCommandScopeAllChatAdministrators(),
-                // DEPRECATED (Sprint 4 Correction): legacy команды отключены, управление через Mini App
+                tgbotapi.BotCommand{Command: "start", Description: "Запустить бота / открыть панель управления"},
+                tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
+                // DEPRECATED (Sprint 4 Final): legacy команды отключены, управление через Mini App
                 // tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
                 // tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
                 // tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
-                tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
         )
         if _, err := b.tgBot.Request(channelCmds); err != nil {
                 slog.Error("TG setMyCommands (admins) failed", "err", err)

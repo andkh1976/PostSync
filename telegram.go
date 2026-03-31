@@ -120,6 +120,12 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                 b.repo.TouchUser(msg.From.ID, "tg", msg.From.UserName, msg.From.FirstName)
                         }
 
+                        // Проверка белого списка ALLOWED_USERS для личных сообщений
+                        if msg.Chat.Type == "private" && msg.From != nil && !b.isUserAllowed(msg.From.ID) {
+                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Доступ запрещён."))
+                                continue
+                        }
+
                         if text == "/whoami" {
                                 b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
                                         "MaxTelegramBridgeBot — мост между Telegram и MAX.\n"+
@@ -130,29 +136,37 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                         }
 
                         if text == "/start" || text == "/help" {
-                                helpText := "Бот-мост между Telegram и MAX.\n\n" +
-                                        "Команды (группы):\n" +
-                                        "/bridge — создать ключ для связки чатов\n" +
-                                        "/bridge <ключ> — связать этот чат с MAX-чатом по ключу\n" +
-                                        "/bridge prefix on/off — включить/выключить префикс [TG]/[MAX]\n" +
-                                        "/unbridge — удалить связку\n\n" +
-                                        "Кросспостинг каналов:\n" +
-                                        "1. Добавьте бота админом в оба канала (с правом постинга)\n" +
-                                        "2. Перешлите пост из TG-канала в личку TG-бота\n" +
-                                        "3. Бот покажет ID — скопируйте\n" +
-                                        "4. В личке MAX-бота: /crosspost <TG_ID>\n" +
-                                        "5. Перешлите пост из MAX-канала → готово!\n\n" +
-                                        "/crosspost — список всех связок с кнопками управления\n" +
-                                        "Управление: перешлите пост из связанного канала → кнопки\n\n" +
-                                        "Как связать группы:\n" +
-                                        "1. Добавьте бота в оба чата\n" +
-                                        "   TG: " + b.cfg.TgBotURL + "\n" +
-                                        "   MAX: " + b.cfg.MaxBotURL + "\n" +
-                                        "2. В MAX сделайте бота админом группы\n" +
-                                        "3. В одном из чатов отправьте /bridge\n" +
-                                        "4. Бот выдаст ключ — отправьте /bridge <ключ> в другом чате\n" +
-                                        "5. Готово!\n\n" +
-                                        "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues"
+                                helpText := "PostSync — пересылка постов из Telegram в MAX.\n\n" +
+                                        "Как начать:\n" +
+                                        "1. Добавьте TG-бота и MAX-бота администраторами в свои каналы (с правом публикации)\n" +
+                                        "2. Нажмите кнопку ниже, чтобы открыть Панель управления\n" +
+                                        "3. В разделе «Связки каналов» создайте связку — укажите ID TG- и MAX-каналов\n\n" +
+                                        "Всё управление (связки, синхронизация, автозамены) — через Панель управления.\n\n" +
+                                        "Поддержка: https://github.com/andkh1976/PostSync/issues"
+                                // DEPRECATED (Sprint 4 Final): старый текст с ручными командами /bridge, /crosspost
+                                // helpText := "Бот-мост между Telegram и MAX.\n\n" +
+                                //      "Команды (группы):\n" +
+                                //      "/bridge — создать ключ для связки чатов\n" +
+                                //      "/bridge <ключ> — связать этот чат с MAX-чатом по ключу\n" +
+                                //      "/bridge prefix on/off — включить/выключить префикс [TG]/[MAX]\n" +
+                                //      "/unbridge — удалить связку\n\n" +
+                                //      "Кросспостинг каналов:\n" +
+                                //      "1. Добавьте бота админом в оба канала (с правом постинга)\n" +
+                                //      "2. Перешлите пост из TG-канала в личку TG-бота\n" +
+                                //      "3. Бот покажет ID — скопируйте\n" +
+                                //      "4. В личке MAX-бота: /crosspost <TG_ID>\n" +
+                                //      "5. Перешлите пост из MAX-канала → готово!\n\n" +
+                                //      "/crosspost — список всех связок с кнопками управления\n" +
+                                //      "Управление: перешлите пост из связанного канала → кнопки\n\n" +
+                                //      "Как связать группы:\n" +
+                                //      "1. Добавьте бота в оба чата\n" +
+                                //      "   TG: " + b.cfg.TgBotURL + "\n" +
+                                //      "   MAX: " + b.cfg.MaxBotURL + "\n" +
+                                //      "2. В MAX сделайте бота админом группы\n" +
+                                //      "3. В одном из чатов отправьте /bridge\n" +
+                                //      "4. Бот выдаст ключ — отправьте /bridge <ключ> в другом чате\n" +
+                                //      "5. Готово!\n\n" +
+                                //      "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues"
                                 helpMsg := tgbotapi.NewMessage(msg.Chat.ID, helpText)
                                 // Sprint 3: если настроен Mini App — добавляем кнопку WebApp
                                 if b.cfg.MiniAppURL != "" {
