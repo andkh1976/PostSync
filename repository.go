@@ -75,7 +75,25 @@ type Repository interface {
         DeleteFromQueue(id int64) error
         IncrementAttempt(id int64, nextRetry int64) error
 
+        // Sync tasks (ретроспективная синхронизация TG→MAX)
+        GetPendingSyncTasks() ([]SyncTask, error)
+        SetSyncTaskStatus(id int64, status, errMsg string) error
+        UpdateSyncTaskLastID(id int64, lastSyncedID string) error
+
         Close() error
+}
+
+// SyncTask — задача ретроспективного скачивания постов из TG-канала в MAX.
+type SyncTask struct {
+        ID           int64
+        UserID       int64
+        TgChatID     int64
+        MaxChatID    int64
+        Status       string // pending | processing | done | failed
+        StartDate    time.Time
+        EndDate      time.Time
+        LastSyncedID string
+        Error        string
 }
 
 // QueueItem — сообщение в очереди на повторную отправку.

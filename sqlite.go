@@ -344,6 +344,62 @@ func (r *sqliteRepo) IncrementAttempt(id int64, nextRetry int64) error {
         return err
 }
 
+func (r *sqliteRepo) GetPendingSyncTasks() ([]SyncTask, error) {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        rows, err := r.db.Query(
+                `SELECT id, user_id, tg_chat_id, max_chat_id, status, start_date, end_date, last_synced_id, error
+                 FROM sync_tasks WHERE status = 'pending' ORDER BY id ASC`,
+        )
+        if err != nil {
+                return nil, err
+        }
+        defer rows.Close()
+        var tasks []SyncTask
+        for rows.Next() {
+                var t SyncTask
+                var startDate, endDate, lastID, errMsg *string
+                if err := rows.Scan(&t.ID, &t.UserID, &t.TgChatID, &t.MaxChatID, &t.Status,
+                        &startDate, &endDate, &lastID, &errMsg); err != nil {
+                        return nil, err
+                }
+                if startDate != nil {
+                        t.StartDate, _ = time.Parse(time.RFC3339, *startDate)
+                }
+                if endDate != nil {
+                        t.EndDate, _ = time.Parse(time.RFC3339, *endDate)
+                }
+                if lastID != nil {
+                        t.LastSyncedID = *lastID
+                }
+                if errMsg != nil {
+                        t.Error = *errMsg
+                }
+                tasks = append(tasks, t)
+        }
+        return tasks, nil
+}
+
+func (r *sqliteRepo) SetSyncTaskStatus(id int64, status, errMsg string) error {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        _, err := r.db.Exec(
+                `UPDATE sync_tasks SET status = ?, error = ? WHERE id = ?`,
+                status, errMsg, id,
+        )
+        return err
+}
+
+func (r *sqliteRepo) UpdateSyncTaskLastID(id int64, lastSyncedID string) error {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        _, err := r.db.Exec(
+                `UPDATE sync_tasks SET last_synced_id = ? WHERE id = ?`,
+                lastSyncedID, id,
+        )
+        return err
+}
+
 func (r *sqliteRepo) Close() error {
         return r.db.Close()
 }

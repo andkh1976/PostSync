@@ -1,0 +1,3 @@
+ALTER TABLE sync_tasks DROP COLUMN IF EXISTS tg_chat_id;
+ALTER TABLE sync_tasks DROP COLUMN IF EXISTS max_chat_id;
+ALTER TABLE sync_tasks DROP COLUMN IF EXISTS error;

@@ -344,6 +344,50 @@ func (r *pgRepo) IncrementAttempt(id int64, nextRetry int64) error {
         return err
 }
 
+func (r *pgRepo) GetPendingSyncTasks() ([]SyncTask, error) {
+        rows, err := r.db.Query(
+                `SELECT id, user_id, tg_chat_id, max_chat_id, status, start_date, end_date, last_synced_id, error
+                 FROM sync_tasks WHERE status = 'pending' ORDER BY id ASC`,
+        )
+        if err != nil {
+                return nil, err
+        }
+        defer rows.Close()
+        var tasks []SyncTask
+        for rows.Next() {
+                var t SyncTask
+                var lastID, errMsg *string
+                if err := rows.Scan(&t.ID, &t.UserID, &t.TgChatID, &t.MaxChatID, &t.Status,
+                        &t.StartDate, &t.EndDate, &lastID, &errMsg); err != nil {
+                        return nil, err
+                }
+                if lastID != nil {
+                        t.LastSyncedID = *lastID
+                }
+                if errMsg != nil {
+                        t.Error = *errMsg
+                }
+                tasks = append(tasks, t)
+        }
+        return tasks, nil
+}
+
+func (r *pgRepo) SetSyncTaskStatus(id int64, status, errMsg string) error {
+        _, err := r.db.Exec(
+                `UPDATE sync_tasks SET status = $1, error = $2 WHERE id = $3`,
+                status, errMsg, id,
+        )
+        return err
+}
+
+func (r *pgRepo) UpdateSyncTaskLastID(id int64, lastSyncedID string) error {
+        _, err := r.db.Exec(
+                `UPDATE sync_tasks SET last_synced_id = $1 WHERE id = $2`,
+                lastSyncedID, id,
+        )
+        return err
+}
+
 func (r *pgRepo) Close() error {
         return r.db.Close()
 }
