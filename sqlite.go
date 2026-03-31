@@ -2,6 +2,7 @@ package main
 
 import (
         "database/sql"
+        "log/slog"
         "sync"
         "time"
 
@@ -97,6 +98,43 @@ func (r *sqliteRepo) LookupTgMsgID(maxMsgID string) (int64, int, bool) {
 func (r *sqliteRepo) CleanOldMessages() {
         r.db.Exec("DELETE FROM messages WHERE created_at < ?", time.Now().Unix()-48*3600)
         r.db.Exec("DELETE FROM pending WHERE created_at > 0 AND created_at < ?", time.Now().Unix()-3600)
+}
+
+// IsCrosspostOwnerByTgChat проверяет, является ли userID владельцем связки по tgChatID.
+// Возвращает true если связка старая (owner_id=0 и tg_owner_id=0 — legacy без владельца).
+func (r *sqliteRepo) IsCrosspostOwnerByTgChat(tgChatID, userID int64) bool {
+        var maxOwner, tgOwner int64
+        err := r.db.QueryRow(
+                "SELECT owner_id, tg_owner_id FROM crossposts WHERE tg_chat_id = ? AND deleted_at = 0",
+                tgChatID,
+        ).Scan(&maxOwner, &tgOwner)
+        if err != nil {
+                return false
+        }
+        if maxOwner == 0 && tgOwner == 0 {
+                return true // legacy-связка без явного владельца
+        }
+        return userID == maxOwner || userID == tgOwner
+}
+
+// DeleteMessagesByPeriod удаляет записи из messages для tgChatID за период [startDate, endDate].
+// created_at хранится как Unix-timestamp (int64).
+func (r *sqliteRepo) DeleteMessagesByPeriod(tgChatID int64, startDate, endDate time.Time) error {
+        res, err := r.db.Exec(
+                "DELETE FROM messages WHERE tg_chat_id = ? AND created_at BETWEEN ? AND ?",
+                tgChatID, startDate.Unix(), endDate.Unix(),
+        )
+        if err != nil {
+                return err
+        }
+        n, _ := res.RowsAffected()
+        slog.Info("DeleteMessagesByPeriod",
+                "tg_chat_id", tgChatID,
+                "from", startDate.Format(time.RFC3339),
+                "to", endDate.Format(time.RFC3339),
+                "deleted", n,
+        )
+        return nil
 }
 
 func (r *sqliteRepo) HasPrefix(platform string, chatID int64) bool {

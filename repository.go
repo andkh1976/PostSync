@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 // Replacement — одно правило замены текста.
 // Target: "" или "all" — весь текст, "links" — только ссылки.
 type Replacement struct {
@@ -54,6 +56,14 @@ type Repository interface {
         UnpairCrosspost(maxChatID, deletedBy int64) bool
         GetCrosspostReplacements(maxChatID int64) CrosspostReplacements
         SetCrosspostReplacements(maxChatID int64, repl CrosspostReplacements) error
+
+        // IsCrosspostOwnerByTgChat проверяет, является ли userID владельцем связки
+        // по tgChatID. Возвращает true если связка старая (без owner_id).
+        IsCrosspostOwnerByTgChat(tgChatID, userID int64) bool
+
+        // DeleteMessagesByPeriod удаляет записи из таблицы messages для указанного
+        // tgChatID за период [startDate, endDate]. Возвращает ошибку при сбое.
+        DeleteMessagesByPeriod(tgChatID int64, startDate, endDate time.Time) error
 
         // Users
         TouchUser(userID int64, platform, username, firstName string)
