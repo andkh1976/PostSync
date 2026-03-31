@@ -130,30 +130,42 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                         }
 
                         if text == "/start" || text == "/help" {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        "Бот-мост между Telegram и MAX.\n\n"+
-                                                "Команды (группы):\n"+
-                                                "/bridge — создать ключ для связки чатов\n"+
-                                                "/bridge <ключ> — связать этот чат с MAX-чатом по ключу\n"+
-                                                "/bridge prefix on/off — включить/выключить префикс [TG]/[MAX]\n"+
-                                                "/unbridge — удалить связку\n\n"+
-                                                "Кросспостинг каналов:\n"+
-                                                "1. Добавьте бота админом в оба канала (с правом постинга)\n"+
-                                                "2. Перешлите пост из TG-канала в личку TG-бота\n"+
-                                                "3. Бот покажет ID — скопируйте\n"+
-                                                "4. В личке MAX-бота: /crosspost <TG_ID>\n"+
-                                                "5. Перешлите пост из MAX-канала → готово!\n\n"+
-                                                "/crosspost — список всех связок с кнопками управления\n"+
-                                                "Управление: перешлите пост из связанного канала → кнопки\n\n"+
-                                                "Как связать группы:\n"+
-                                                "1. Добавьте бота в оба чата\n"+
-                                                "   TG: "+b.cfg.TgBotURL+"\n"+
-                                                "   MAX: "+b.cfg.MaxBotURL+"\n"+
-                                                "2. В MAX сделайте бота админом группы\n"+
-                                                "3. В одном из чатов отправьте /bridge\n"+
-                                                "4. Бот выдаст ключ — отправьте /bridge <ключ> в другом чате\n"+
-                                                "5. Готово!\n\n"+
-                                                "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues"))
+                                helpText := "Бот-мост между Telegram и MAX.\n\n" +
+                                        "Команды (группы):\n" +
+                                        "/bridge — создать ключ для связки чатов\n" +
+                                        "/bridge <ключ> — связать этот чат с MAX-чатом по ключу\n" +
+                                        "/bridge prefix on/off — включить/выключить префикс [TG]/[MAX]\n" +
+                                        "/unbridge — удалить связку\n\n" +
+                                        "Кросспостинг каналов:\n" +
+                                        "1. Добавьте бота админом в оба канала (с правом постинга)\n" +
+                                        "2. Перешлите пост из TG-канала в личку TG-бота\n" +
+                                        "3. Бот покажет ID — скопируйте\n" +
+                                        "4. В личке MAX-бота: /crosspost <TG_ID>\n" +
+                                        "5. Перешлите пост из MAX-канала → готово!\n\n" +
+                                        "/crosspost — список всех связок с кнопками управления\n" +
+                                        "Управление: перешлите пост из связанного канала → кнопки\n\n" +
+                                        "Как связать группы:\n" +
+                                        "1. Добавьте бота в оба чата\n" +
+                                        "   TG: " + b.cfg.TgBotURL + "\n" +
+                                        "   MAX: " + b.cfg.MaxBotURL + "\n" +
+                                        "2. В MAX сделайте бота админом группы\n" +
+                                        "3. В одном из чатов отправьте /bridge\n" +
+                                        "4. Бот выдаст ключ — отправьте /bridge <ключ> в другом чате\n" +
+                                        "5. Готово!\n\n" +
+                                        "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues"
+                                helpMsg := tgbotapi.NewMessage(msg.Chat.ID, helpText)
+                                // Sprint 3: если настроен Mini App — добавляем кнопку WebApp
+                                if b.cfg.MiniAppURL != "" {
+                                        helpMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                                                tgbotapi.NewInlineKeyboardRow(
+                                                        tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
+                                                                b.cfg.MiniAppURL),
+                                                ),
+                                        )
+                                }
+                                // DEPRECATED (Sprint 3): старая отправка без кнопки
+                                // b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, helpText))
+                                b.tgBot.Send(helpMsg)
                                 continue
                         }
 
@@ -201,8 +213,18 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                 }
                                 links := b.repo.ListCrossposts(msg.From.ID)
                                 if len(links) == 0 {
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                                "Нет активных связок.\n\nНастройка: перешлите пост из TG-канала сюда, затем в MAX-боте /crosspost <ID>"))
+                                        noLinksMsg := tgbotapi.NewMessage(msg.Chat.ID,
+                                                "Нет активных связок.\n\nНастройка: перешлите пост из TG-канала сюда, затем в MAX-боте /crosspost <ID>")
+                                        // Sprint 3: кнопка Mini App если настроен
+                                        if b.cfg.MiniAppURL != "" {
+                                                noLinksMsg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                                                        tgbotapi.NewInlineKeyboardRow(
+                                                                tgbotapi.NewInlineKeyboardButtonURL("⚙️ Панель управления",
+                                                                        b.cfg.MiniAppURL),
+                                                        ),
+                                                )
+                                        }
+                                        b.tgBot.Send(noLinksMsg)
                                 } else {
                                         for _, l := range links {
                                                 tgTitle := b.tgChatTitle(l.TgChatID)
@@ -213,11 +235,22 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                                         statusText += fmt.Sprintf("\nTG: «%s» (%d)\nMAX: %d", tgTitle, l.TgChatID, l.MaxChatID)
                                                 }
                                                 m := tgbotapi.NewMessage(msg.Chat.ID, statusText)
-                                                m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                        tgbotapi.NewInlineKeyboardRow(
-                                                                tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", "settings"),
-                                                        ),
-                                                )
+                                                // Sprint 3: заменяем старую кнопку "⚙️ Настройки" на кнопку Mini App WebApp
+                                                if b.cfg.MiniAppURL != "" {
+                                                        m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                                                                tgbotapi.NewInlineKeyboardRow(
+                                                                        tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
+                                                                                b.cfg.MiniAppURL),
+                                                                ),
+                                                        )
+                                                } else {
+                                                        // DEPRECATED (Sprint 3): старая кнопка настроек (inline callback)
+                                                        // m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                                                        //     tgbotapi.NewInlineKeyboardRow(
+                                                        //         tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", "settings"),
+                                                        //     ),
+                                                        // )
+                                                }
                                                 b.tgBot.Send(m)
                                         }
                                 }
@@ -240,13 +273,24 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
                                 // Проверяем, уже связан ли канал
                                 if _, direction, ok := b.repo.GetCrosspostMaxChat(channelID, 0); ok {
-                                        text := tgCrosspostStatusText(channelTitle, direction)
-                                        m := tgbotapi.NewMessage(msg.Chat.ID, text)
-                                        m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-                                                tgbotapi.NewInlineKeyboardRow(
-                                                        tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", "settings"),
-                                                ),
-                                        )
+                                        statusText := tgCrosspostStatusText(channelTitle, direction)
+                                        m := tgbotapi.NewMessage(msg.Chat.ID, statusText)
+                                        // Sprint 3: используем кнопку Mini App вместо inline callback
+                                        if b.cfg.MiniAppURL != "" {
+                                                m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                                                        tgbotapi.NewInlineKeyboardRow(
+                                                                tgbotapi.NewInlineKeyboardButtonURL("⚙️ Открыть панель управления",
+                                                                        b.cfg.MiniAppURL),
+                                                        ),
+                                                )
+                                        } else {
+                                                // DEPRECATED (Sprint 3): старая кнопка настроек (inline callback)
+                                                // m.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+                                                //     tgbotapi.NewInlineKeyboardRow(
+                                                //         tgbotapi.NewInlineKeyboardButtonData("⚙️ Настройки", "settings"),
+                                                //     ),
+                                                // )
+                                        }
                                         b.tgBot.Send(m)
                                         continue
                                 }
@@ -738,6 +782,11 @@ func (b *Bridge) handleTgChannelPost(ctx context.Context, msg *tgbotapi.Message)
         }
         if direction == "max>tg" {
                 return // только MAX→TG, пропускаем
+        }
+        // Sprint 3: проверяем флаг live_listen — если выключен, новые посты не пересылаем
+        if !b.repo.GetCrosspostLiveListen(maxChatID) {
+                slog.Debug("TG→MAX crosspost skipped: live_listen=false", "tgChat", msg.Chat.ID, "maxChat", maxChatID)
+                return
         }
 
         // Anti-loop

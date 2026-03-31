@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bridge Control Panel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --success: #16a34a;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111827;
+        --card: #1f2937;
+        --text: #f9fafb;
+        --muted: #9ca3af;
+        --border: #374151;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title .icon { font-size: 18px; }
+
+    .channel-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .channel-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .channel-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .channel-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .channel-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .direction-select {
+      flex: 1;
+      min-width: 120px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #ccc;
+      border-radius: 22px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider:before {
+      content: '';
+      position: absolute;
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    input:checked + .toggle-slider { background: var(--success); }
+    input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+    .save-btn {
+      padding: 5px 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .save-btn:hover { background: var(--primary-hover); }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .form-row label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .select-field, .date-field {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .date-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .action-btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      flex: 1;
+      min-width: 130px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn:active { opacity: 0.8; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-danger  { background: var(--danger);  color: white; }
+
+    .status-bar {
+      margin-top: 10px;
+      font-size: 13px;
+      min-height: 20px;
+      color: var(--muted);
+    }
+
+    .status-bar.ok   { color: var(--success); }
+    .status-bar.err  { color: var(--danger); }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 16px 0;
+    }
+
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<h1>⚙️ Bridge Control Panel</h1>
+<p class="subtitle">Управление синхронизацией TG ↔ MAX</p>
+
+<div class="card">
+  <div class="card-title"><span class="icon">🔗</span> Активные связки каналов</div>
+  <div id="channels-container" class="loading"><span class="spinner"></span>Загрузка...</div>
+</div>
+
+<div class="card">
+  <div class="card-title"><span class="icon">📥</span> Ретроспективное скачивание</div>
+
+  <div class="form-row">
+    <div>
+      <label for="sync-channel">Канал</label>
+      <select id="sync-channel" class="select-field">
+        <option value="">— выберите связку —</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Период</label>
+      <div class="date-row">
+        <div>
+          <label for="sync-start">С</label>
+          <input type="date" id="sync-start" class="date-field" />
+        </div>
+        <div>
+          <label for="sync-end">По</label>
+          <input type="date" id="sync-end" class="date-field" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-btns">
+    <button class="btn btn-primary" id="btn-sync" onclick="startSync()">
+      ▶ Запустить скачивание
+    </button>
+    <button class="btn btn-danger" id="btn-clear" onclick="clearHistory()">
+      🗑 Сбросить историю
+    </button>
+  </div>
+  <div class="status-bar" id="sync-status"></div>
+</div>
+
+<script>
+  // ─── Telegram WebApp bootstrap ───────────────────────────────────────────
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    // Применяем цветовую схему Telegram
+    document.documentElement.style.setProperty('--bg',   tg.backgroundColor    || '');
+    document.documentElement.style.setProperty('--card', tg.secondaryBackgroundColor || '');
+    document.documentElement.style.setProperty('--text', tg.themeParams && tg.themeParams.text_color || '');
+  }
+
+  // ─── Auth header ──────────────────────────────────────────────────────────
+  function authHeader() {
+    if (tg && tg.initData && tg.initData.length > 0) {
+      return 'tg ' + tg.initData;
+    }
+    // Для локальной разработки без Telegram — показываем предупреждение
+    return null;
+  }
+
+  // ─── API base URL ─────────────────────────────────────────────────────────
+  const API_BASE = window.location.origin;
+
+  async function apiFetch(path, opts = {}) {
+    const auth = authHeader();
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    if (auth) headers['Authorization'] = auth;
+    const res = await fetch(API_BASE + path, { ...opts, headers });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Ошибка ' + res.status);
+    return body;
+  }
+
+  // ─── Channels ─────────────────────────────────────────────────────────────
+  let channels = [];
+
+  async function loadChannels() {
+    const container = document.getElementById('channels-container');
+    try {
+      channels = await apiFetch('/api/channels');
+      renderChannels(container);
+      populateSyncSelect();
+    } catch (e) {
+      if (e.message && e.message.includes('unauthorized')) {
+        container.innerHTML = '<div class="empty-state">⚠️ Авторизация недоступна.<br>Откройте это приложение через кнопку в боте.</div>';
+      } else {
+        container.innerHTML = '<div class="empty-state">Ошибка загрузки: ' + escHtml(e.message) + '</div>';
+      }
+    }
+  }
+
+  function renderChannels(container) {
+    if (!channels || channels.length === 0) {
+      container.innerHTML = '<div class="empty-state">Нет активных связок.<br>Настройте кросспостинг через команду /crosspost.</div>';
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'channel-list';
+    channels.forEach((ch, idx) => {
+      const title = ch.tg_title || ('TG: ' + ch.tg_chat_id);
+      const dirLabels = { 'tg>max': 'TG → MAX', 'max>tg': 'MAX → TG', 'both': '⟷ оба' };
+      const dirLabel = dirLabels[ch.direction] || ch.direction;
+
+      const item = document.createElement('div');
+      item.className = 'channel-item';
+      item.innerHTML = `
+        <div class="channel-name">${escHtml(title)}</div>
+        <div class="channel-meta">MAX: ${ch.max_chat_id} &nbsp;·&nbsp; ${dirLabel}</div>
+        <div class="channel-controls">
+          <select class="direction-select" id="dir-${idx}" onchange="saveSettings(${idx})">
+            <option value="tg>max" ${ch.direction === 'tg>max' ? 'selected' : ''}>TG → MAX</option>
+            <option value="max>tg" ${ch.direction === 'max>tg' ? 'selected' : ''}>MAX → TG</option>
+            <option value="both"   ${ch.direction === 'both'   ? 'selected' : ''}>⟷ Оба направления</option>
+          </select>
+          <label class="toggle-label">
+            <span class="toggle">
+              <input type="checkbox" id="ll-${idx}" ${ch.live_listen ? 'checked' : ''}
+                     onchange="saveSettings(${idx})">
+              <span class="toggle-slider"></span>
+            </span>
+            Живое прослушивание
+          </label>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+    container.innerHTML = '';
+    container.appendChild(list);
+  }
+
+  async function saveSettings(idx) {
+    const ch = channels[idx];
+    const dir = document.getElementById('dir-' + idx).value;
+    const ll  = document.getElementById('ll-'  + idx).checked;
+    try {
+      const updated = await apiFetch('/api/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ max_chat_id: ch.max_chat_id, direction: dir, live_listen: ll }),
+      });
+      channels[idx] = { ...channels[idx], direction: updated.direction, live_listen: updated.live_listen };
+      showStatus('sync-status', '✓ Настройки сохранены', 'ok');
+    } catch (e) {
+      showStatus('sync-status', '✗ ' + e.message, 'err');
+    }
+  }
+
+  function populateSyncSelect() {
+    const sel = document.getElementById('sync-channel');
+    sel.innerHTML = '<option value="">— выберите связку —</option>';
+    (channels || []).forEach(ch => {
+      const title = ch.tg_title || ('TG: ' + ch.tg_chat_id);
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ tg: ch.tg_chat_id, max: ch.max_chat_id });
+      opt.textContent = title;
+      sel.appendChild(opt);
+    });
+    // Дефолтные даты: последние 30 дней
+    const today = new Date();
+    const ago30 = new Date(today); ago30.setDate(today.getDate() - 30);
+    document.getElementById('sync-end').value   = dateStr(today);
+    document.getElementById('sync-start').value = dateStr(ago30);
+  }
+
+  // ─── Sync ─────────────────────────────────────────────────────────────────
+  async function startSync() {
+    const { tgChatID, maxChatID, startDate, endDate } = getFormValues();
+    if (!tgChatID) return showStatus('sync-status', 'Выберите канал', 'err');
+    if (!startDate || !endDate) return showStatus('sync-status', 'Выберите период', 'err');
+
+    setLoading('btn-sync', true);
+    try {
+      const res = await apiFetch('/api/sync/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          tg_chat_id:  tgChatID,
+          max_chat_id: maxChatID,
+          start_date:  startDate,
+          end_date:    endDate,
+        }),
+      });
+      showStatus('sync-status', `✓ Задача #${res.task_id} создана (статус: ${res.status})`, 'ok');
+    } catch (e) {
+      showStatus('sync-status', '✗ ' + e.message, 'err');
+    } finally {
+      setLoading('btn-sync', false);
+    }
+  }
+
+  async function clearHistory() {
+    const { tgChatID, startDate, endDate } = getFormValues();
+    if (!tgChatID) return showStatus('sync-status', 'Выберите канал', 'err');
+    if (!startDate || !endDate) return showStatus('sync-status', 'Выберите период', 'err');
+
+    const confirmed = confirm(
+      `Сбросить маппинг сообщений?\n\nКанал: TG ${tgChatID}\nПериод: ${startDate} — ${endDate}\n\nЭто не удаляет сами посты, только внутреннее соответствие ID.`
+    );
+    if (!confirmed) return;
+
+    setLoading('btn-clear', true);
+    try {
+      await apiFetch('/api/history/clear', {
+        method: 'POST',
+        body: JSON.stringify({ tg_chat_id: tgChatID, start_date: startDate, end_date: endDate }),
+      });
+      showStatus('sync-status', '✓ Маппинг сообщений за период очищен', 'ok');
+    } catch (e) {
+      showStatus('sync-status', '✗ ' + e.message, 'err');
+    } finally {
+      setLoading('btn-clear', false);
+    }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  function getFormValues() {
+    const sel = document.getElementById('sync-channel');
+    let tgChatID = null, maxChatID = null;
+    if (sel.value) {
+      try { const v = JSON.parse(sel.value); tgChatID = v.tg; maxChatID = v.max; } catch(_) {}
+    }
+    return {
+      tgChatID,
+      maxChatID,
+      startDate: document.getElementById('sync-start').value,
+      endDate:   document.getElementById('sync-end').value,
+    };
+  }
+
+  function showStatus(id, msg, type) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status-bar ' + (type || '');
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 5000);
+  }
+
+  function setLoading(btnId, loading) {
+    document.getElementById(btnId).disabled = loading;
+  }
+
+  function dateStr(d) {
+    return d.toISOString().split('T')[0];
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ─── Init ─────────────────────────────────────────────────────────────────
+  loadChannels();
+</script>
+</body>
+</html>

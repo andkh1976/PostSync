@@ -137,6 +137,13 @@ func main() {
                 slog.Info("MTProto sync worker enabled", "appID", cfg.TGAppID, "session", cfg.TGSessionFile)
         }
 
+        // Mini App (Sprint 3): URL для кнопки WebApp и путь к папке фронтенда
+        cfg.MiniAppURL = os.Getenv("MINI_APP_URL")
+        cfg.MiniAppDir = envOr("MINI_APP_DIR", "frontend")
+        if cfg.MiniAppURL != "" {
+                slog.Info("Mini App configured", "url", cfg.MiniAppURL)
+        }
+
         tgToken := mustEnv("TG_TOKEN")
         dbPath := envOr("DB_PATH", "bridge.db")
 

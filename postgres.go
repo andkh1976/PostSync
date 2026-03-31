@@ -388,6 +388,31 @@ func (r *pgRepo) UpdateSyncTaskLastID(id int64, lastSyncedID string) error {
         return err
 }
 
+func (r *pgRepo) SetCrosspostLiveListen(maxChatID int64, liveListen bool) bool {
+        res, _ := r.db.Exec("UPDATE crossposts SET live_listen = $1 WHERE max_chat_id = $2 AND deleted_at = 0", liveListen, maxChatID)
+        if res == nil {
+                return false
+        }
+        n, _ := res.RowsAffected()
+        return n > 0
+}
+
+func (r *pgRepo) GetCrosspostLiveListen(maxChatID int64) bool {
+        var v bool
+        r.db.QueryRow("SELECT live_listen FROM crossposts WHERE max_chat_id = $1 AND deleted_at = 0", maxChatID).Scan(&v)
+        return v
+}
+
+func (r *pgRepo) CreateSyncTask(task SyncTask) (int64, error) {
+        var id int64
+        err := r.db.QueryRow(
+                `INSERT INTO sync_tasks (user_id, tg_chat_id, max_chat_id, status, start_date, end_date, last_synced_id, error)
+                 VALUES ($1, $2, $3, 'pending', $4, $5, '', '') RETURNING id`,
+                task.UserID, task.TgChatID, task.MaxChatID, task.StartDate, task.EndDate,
+        ).Scan(&id)
+        return id, err
+}
+
 func (r *pgRepo) Close() error {
         return r.db.Close()
 }

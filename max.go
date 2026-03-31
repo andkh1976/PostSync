@@ -199,32 +199,38 @@ func (b *Bridge) listenMax(ctx context.Context) {
                         }
 
                         if text == "/start" || text == "/help" {
-                                m := maxbot.NewMessage().SetChat(chatID).SetText(
-                                        "Бот-мост между MAX и Telegram.\n\n" +
-                                                "Команды (группы):\n" +
-                                                "/bridge — создать ключ для связки чатов\n" +
-                                                "/bridge <ключ> — связать этот чат с Telegram-чатом по ключу\n" +
-                                                "/bridge prefix on/off — включить/выключить префикс [TG]/[MAX]\n" +
-                                                "/unbridge — удалить связку\n\n" +
-                                                "Кросспостинг каналов (в личке бота):\n" +
-                                                "/crosspost <TG_ID> — связать MAX-канал с TG-каналом\n" +
-                                                "   (TG ID получить: перешлите пост из TG-канала TG-боту)\n\n" +
-                                                "Как связать каналы:\n" +
-                                                "1. Добавьте бота админом в оба канала (с правом постинга)\n" +
-                                                "   TG: " + b.cfg.TgBotURL + "\n" +
-                                                "2. Перешлите пост из TG-канала в личку TG-бота\n" +
-                                                "3. Бот покажет ID канала — скопируйте\n" +
-                                                "4. Здесь в личке напишите: /crosspost <TG_ID>\n" +
-                                                "5. Перешлите пост из MAX-канала сюда → готово!\n\n" +
-                                                "/crosspost — список всех связок с кнопками управления\n" +
-                                                "Управление: перешлите пост из связанного канала → кнопки\n\n" +
-                                                "Как связать группы:\n" +
-                                                "1. Добавьте бота в оба чата\n" +
-                                                "   MAX: " + b.cfg.MaxBotURL + "\n" +
-                                                "2. В одном из чатов отправьте /bridge\n" +
-                                                "3. Бот выдаст ключ — отправьте его в другом чате\n" +
-                                                "4. Готово!\n\n" +
-                                                "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues")
+                                helpText := "Бот-мост между MAX и Telegram.\n\n" +
+                                        "Команды (группы):\n" +
+                                        "/bridge — создать ключ для связки чатов\n" +
+                                        "/bridge <ключ> — связать этот чат с Telegram-чатом по ключу\n" +
+                                        "/bridge prefix on/off — включить/выключить префикс [TG]/[MAX]\n" +
+                                        "/unbridge — удалить связку\n\n" +
+                                        "Кросспостинг каналов (в личке бота):\n" +
+                                        "/crosspost <TG_ID> — связать MAX-канал с TG-каналом\n" +
+                                        "   (TG ID получить: перешлите пост из TG-канала TG-боту)\n\n" +
+                                        "Как связать каналы:\n" +
+                                        "1. Добавьте бота админом в оба канала (с правом постинга)\n" +
+                                        "   TG: " + b.cfg.TgBotURL + "\n" +
+                                        "2. Перешлите пост из TG-канала в личку TG-бота\n" +
+                                        "3. Бот покажет ID канала — скопируйте\n" +
+                                        "4. Здесь в личке напишите: /crosspost <TG_ID>\n" +
+                                        "5. Перешлите пост из MAX-канала сюда → готово!\n\n" +
+                                        "/crosspost — список всех связок с кнопками управления\n" +
+                                        "Управление: перешлите пост из связанного канала → кнопки\n\n" +
+                                        "Как связать группы:\n" +
+                                        "1. Добавьте бота в оба чата\n" +
+                                        "   MAX: " + b.cfg.MaxBotURL + "\n" +
+                                        "2. В одном из чатов отправьте /bridge\n" +
+                                        "3. Бот выдаст ключ — отправьте его в другом чате\n" +
+                                        "4. Готово!\n\n" +
+                                        "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues"
+                                // Sprint 3: если настроен Mini App — добавляем ссылку на панель управления
+                                if b.cfg.MiniAppURL != "" {
+                                        helpText += "\n\n⚙️ Панель управления: " + b.cfg.MiniAppURL
+                                }
+                                // DEPRECATED (Sprint 3): старая отправка без ссылки на Mini App
+                                // m := maxbot.NewMessage().SetChat(chatID).SetText(helpText_old)
+                                m := maxbot.NewMessage().SetChat(chatID).SetText(helpText)
                                 b.maxApi.Messages.Send(ctx, m)
                                 continue
                         }
@@ -356,14 +362,18 @@ func (b *Bridge) listenMax(ctx context.Context) {
                                 if arg == "" {
                                         links := b.repo.ListCrossposts(msgUpd.Message.Sender.UserId)
                                         if len(links) == 0 {
-                                                m := maxbot.NewMessage().SetChat(chatID).SetText(
-                                                        "Нет активных связок.\n\n" +
-                                                                "Настройка:\n" +
-                                                                "1. Перешлите пост из TG-канала в личку TG-бота\n" +
-                                                                "   " + b.cfg.TgBotURL + "\n" +
-                                                                "2. Бот покажет ID канала\n" +
-                                                                "3. Здесь напишите: /crosspost <TG_ID>\n" +
-                                                                "4. Перешлите пост из MAX-канала сюда")
+                                                noLinksText := "Нет активных связок.\n\n" +
+                                                        "Настройка:\n" +
+                                                        "1. Перешлите пост из TG-канала в личку TG-бота\n" +
+                                                        "   " + b.cfg.TgBotURL + "\n" +
+                                                        "2. Бот покажет ID канала\n" +
+                                                        "3. Здесь напишите: /crosspost <TG_ID>\n" +
+                                                        "4. Перешлите пост из MAX-канала сюда"
+                                                // Sprint 3: добавляем ссылку на панель управления
+                                                if b.cfg.MiniAppURL != "" {
+                                                        noLinksText += "\n\n⚙️ Панель управления: " + b.cfg.MiniAppURL
+                                                }
+                                                m := maxbot.NewMessage().SetChat(chatID).SetText(noLinksText)
                                                 b.maxApi.Messages.Send(ctx, m)
                                         } else {
                                                 for _, l := range links {
@@ -372,12 +382,19 @@ func (b *Bridge) listenMax(ctx context.Context) {
                                                         if tgTitle != "" {
                                                                 statusText = fmt.Sprintf("TG: «%s» (%d)\n", tgTitle, l.TgChatID) + statusText
                                                         }
-                                                        skb := b.maxApi.Messages.NewKeyboardBuilder()
-                                                        skb.AddRow().AddCallback("⚙️ Настройки", maxschemes.DEFAULT, "settings")
-                                                        m := maxbot.NewMessage().SetChat(chatID).
-                                                                SetText(statusText).
-                                                                AddKeyboard(skb)
-                                                        b.maxApi.Messages.Send(ctx, m)
+                                                        // Sprint 3: заменяем старую кнопку настроек на ссылку Mini App
+                                                        if b.cfg.MiniAppURL != "" {
+                                                                statusText += "\n\n⚙️ Управление: " + b.cfg.MiniAppURL
+                                                                m := maxbot.NewMessage().SetChat(chatID).SetText(statusText)
+                                                                b.maxApi.Messages.Send(ctx, m)
+                                                        } else {
+                                                                // DEPRECATED (Sprint 3): старая кнопка настроек (inline callback)
+                                                                // skb := b.maxApi.Messages.NewKeyboardBuilder()
+                                                                // skb.AddRow().AddCallback("⚙️ Настройки", maxschemes.DEFAULT, "settings")
+                                                                // m := maxbot.NewMessage().SetChat(chatID).SetText(statusText).AddKeyboard(skb)
+                                                                m := maxbot.NewMessage().SetChat(chatID).SetText(statusText)
+                                                                b.maxApi.Messages.Send(ctx, m)
+                                                        }
                                                 }
                                         }
                                         continue

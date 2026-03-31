@@ -65,6 +65,15 @@ type Repository interface {
         // tgChatID за период [startDate, endDate]. Возвращает ошибку при сбое.
         DeleteMessagesByPeriod(tgChatID int64, startDate, endDate time.Time) error
 
+        // SetCrosspostLiveListen включает или выключает "живое прослушивание" новых постов.
+        SetCrosspostLiveListen(maxChatID int64, liveListen bool) bool
+
+        // GetCrosspostLiveListen возвращает текущее состояние live_listen для связки.
+        GetCrosspostLiveListen(maxChatID int64) bool
+
+        // CreateSyncTask создаёт новую запись sync_task для ретроспективного скачивания.
+        CreateSyncTask(task SyncTask) (int64, error)
+
         // Users
         TouchUser(userID int64, platform, username, firstName string)
         ListUsers(platform string) ([]int64, error)

@@ -400,6 +400,41 @@ func (r *sqliteRepo) UpdateSyncTaskLastID(id int64, lastSyncedID string) error {
         return err
 }
 
+func (r *sqliteRepo) SetCrosspostLiveListen(maxChatID int64, liveListen bool) bool {
+        v := 0
+        if liveListen {
+                v = 1
+        }
+        res, _ := r.db.Exec("UPDATE crossposts SET live_listen = ? WHERE max_chat_id = ? AND deleted_at = 0", v, maxChatID)
+        if res == nil {
+                return false
+        }
+        n, _ := res.RowsAffected()
+        return n > 0
+}
+
+func (r *sqliteRepo) GetCrosspostLiveListen(maxChatID int64) bool {
+        var v int
+        r.db.QueryRow("SELECT live_listen FROM crossposts WHERE max_chat_id = ? AND deleted_at = 0", maxChatID).Scan(&v)
+        return v != 0
+}
+
+func (r *sqliteRepo) CreateSyncTask(task SyncTask) (int64, error) {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        res, err := r.db.Exec(
+                `INSERT INTO sync_tasks (user_id, tg_chat_id, max_chat_id, status, start_date, end_date, last_synced_id, error)
+                 VALUES (?, ?, ?, 'pending', ?, ?, '', '')`,
+                task.UserID, task.TgChatID, task.MaxChatID,
+                task.StartDate.Format(time.RFC3339),
+                task.EndDate.Format(time.RFC3339),
+        )
+        if err != nil {
+                return 0, err
+        }
+        return res.LastInsertId()
+}
+
 func (r *sqliteRepo) Close() error {
         return r.db.Close()
 }

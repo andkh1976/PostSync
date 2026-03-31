@@ -37,6 +37,10 @@ type Config struct {
         TGAppHash    string // TG_APP_HASH — хэш приложения из my.telegram.org
         TGPhone      string // TG_PHONE — номер телефона для первичной авторизации
         TGSessionFile string // TG_SESSION_FILE — путь к файлу сессии (default: tg_session.json)
+
+        // Mini App (Sprint 3)
+        MiniAppURL string // MINI_APP_URL — URL Mini App для кнопки WebApp в ботах
+        MiniAppDir string // MINI_APP_DIR — путь к папке с фронтендом (default: frontend)
 }
 
 // chatBreaker хранит состояние circuit breaker для одного чата.
@@ -287,21 +291,13 @@ func (b *Bridge) Run(ctx context.Context) {
                 }
         }()
 
+        // HTTP-сервер всегда запускается: для вебхуков (если настроены) и API (Sprint 3).
+        // Используем DefaultServeMux — вебхуки TG/MAX регистрируются в listenTelegram/listenMax.
+        b.registerAPIRoutes(http.DefaultServeMux)
         if b.cfg.WebhookURL != "" {
-                go func() {
-                        addr := ":" + b.cfg.WebhookPort
-                        srv := &http.Server{
-                                Addr:         addr,
-                                ReadTimeout:  10 * time.Second,
-                                WriteTimeout: 10 * time.Second,
-                                IdleTimeout:  60 * time.Second,
-                        }
-                        slog.Info("Webhook server starting", "addr", addr)
-                        if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-                                slog.Error("Webhook server failed", "err", err)
-                        }
-                }()
+                slog.Info("Webhook mode enabled", "url", b.cfg.WebhookURL)
         }
+        go b.startHTTPServer(ctx, http.DefaultServeMux)
 
         // Запускаем воркер ретроспективной синхронизации если MTProto настроен
         if b.cfg.TGAppID != 0 && b.cfg.TGAppHash != "" {
