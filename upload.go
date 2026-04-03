@@ -282,6 +282,7 @@ func (b *Bridge) uploadTgPhotoToMax(ctx context.Context, fileID string) (*maxsch
                         lastErr = fmt.Errorf("tg getFileURL: %w", err)
                         continue
                 }
+                slog.Info("uploadTgPhotoToMax: downloading", "attempt", attempt+1, "url", fileURL, "fileID", fileID)
                 dlReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL, nil)
                 if err != nil {
                         return nil, fmt.Errorf("create download request: %w", err)
@@ -293,7 +294,7 @@ func (b *Bridge) uploadTgPhotoToMax(ctx context.Context, fileID string) (*maxsch
                 }
                 if resp.StatusCode != 200 {
                         resp.Body.Close()
-                        lastErr = fmt.Errorf("tg download status: %d", resp.StatusCode)
+                        lastErr = fmt.Errorf("tg download status: %d url: %s", resp.StatusCode, fileURL)
                         continue
                 }
                 result, err := b.maxApi.Uploads.UploadPhotoFromReader(ctx, resp.Body)
