@@ -9,6 +9,7 @@ import (
         "log/slog"
         "mime/multipart"
         "net/http"
+        "os"
         "strings"
         "time"
 
@@ -263,8 +264,40 @@ const tgFileRetryDelay = 1500 * time.Millisecond
 const tgPhotoRetries = 5
 const tgPhotoRetryDelay = 3 * time.Second
 
+// openTgFile открывает файл из TG: при локальном Bot API — с диска, иначе — по HTTP.
+// Возвращает io.ReadCloser и размер файла (-1 если неизвестен).
+func (b *Bridge) openTgFile(ctx context.Context, filePathOrURL string) (io.ReadCloser, int64, error) {
+        if b.cfg.TgAPIURL != "" {
+                // Локальный режим — файл на диске (shared volume)
+                f, err := os.Open(filePathOrURL)
+                if err != nil {
+                        return nil, 0, fmt.Errorf("open local file: %w", err)
+                }
+                stat, _ := f.Stat()
+                size := int64(-1)
+                if stat != nil {
+                        size = stat.Size()
+                }
+                return f, size, nil
+        }
+        // Облачный режим — скачиваем по HTTP
+        dlReq, err := http.NewRequestWithContext(ctx, http.MethodGet, filePathOrURL, nil)
+        if err != nil {
+                return nil, 0, fmt.Errorf("create download request: %w", err)
+        }
+        resp, err := b.httpClient.Do(dlReq)
+        if err != nil {
+                return nil, 0, fmt.Errorf("download: %w", err)
+        }
+        if resp.StatusCode != 200 {
+                resp.Body.Close()
+                return nil, 0, fmt.Errorf("tg download status: %d url: %s", resp.StatusCode, filePathOrURL)
+        }
+        return resp.Body, resp.ContentLength, nil
+}
+
 // uploadTgPhotoToMax скачивает фото из TG и загружает в MAX через SDK (возвращает PhotoTokens).
-// При ошибках getFile или скачивания (invalid file_id, 404) делает до tgPhotoRetries попыток —
+// При ошибках getFile или скачивания делает до tgPhotoRetries попыток —
 // локальный Bot API сервер иногда ещё не успел скачать файл к моменту первого обращения.
 func (b *Bridge) uploadTgPhotoToMax(ctx context.Context, fileID string) (*maxschemes.PhotoTokens, error) {
         var lastErr error
@@ -277,28 +310,19 @@ func (b *Bridge) uploadTgPhotoToMax(ctx context.Context, fileID string) (*maxsch
                         case <-time.After(tgPhotoRetryDelay):
                         }
                 }
-                fileURL, err := b.tgFileURL(fileID)
+                filePathOrURL, err := b.tgFileURL(fileID)
                 if err != nil {
                         lastErr = fmt.Errorf("tg getFileURL: %w", err)
                         continue
                 }
-                slog.Info("uploadTgPhotoToMax: downloading", "attempt", attempt+1, "url", fileURL, "fileID", fileID)
-                dlReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL, nil)
+                slog.Info("uploadTgPhotoToMax: opening", "attempt", attempt+1, "src", filePathOrURL, "fileID", fileID)
+                reader, _, err := b.openTgFile(ctx, filePathOrURL)
                 if err != nil {
-                        return nil, fmt.Errorf("create download request: %w", err)
-                }
-                resp, err := b.httpClient.Do(dlReq)
-                if err != nil {
-                        lastErr = fmt.Errorf("download: %w", err)
+                        lastErr = err
                         continue
                 }
-                if resp.StatusCode != 200 {
-                        resp.Body.Close()
-                        lastErr = fmt.Errorf("tg download status: %d url: %s", resp.StatusCode, fileURL)
-                        continue
-                }
-                result, err := b.maxApi.Uploads.UploadPhotoFromReader(ctx, resp.Body)
-                resp.Body.Close()
+                result, err := b.maxApi.Uploads.UploadPhotoFromReader(ctx, reader)
+                reader.Close()
                 return result, err
         }
         slog.Error("uploadTgPhotoToMax: all attempts failed", "attempts", tgPhotoRetries, "err", lastErr)
@@ -307,7 +331,7 @@ func (b *Bridge) uploadTgPhotoToMax(ctx context.Context, fileID string) (*maxsch
 
 // uploadTgMediaToMax скачивает файл из TG и загружает в MAX (потоковая передача без буферизации в RAM).
 // При использовании локального Bot API сервера (TgAPIURL != "") и ошибках getFile или скачивания
-// (invalid file_id, 404) делает до tgFileRetries попыток — локальный сервер иногда ещё не успел
+// делает до tgFileRetries попыток — локальный сервер иногда ещё не успел
 // скачать файл к моменту первого обращения.
 func (b *Bridge) uploadTgMediaToMax(ctx context.Context, fileID string, uploadType maxschemes.UploadType, fileName string) (*maxschemes.UploadedInfo, error) {
         maxAttempts := 1
@@ -325,26 +349,16 @@ func (b *Bridge) uploadTgMediaToMax(ctx context.Context, fileID string, uploadTy
                         case <-time.After(tgFileRetryDelay):
                         }
                 }
-                fileURL, err := b.tgFileURL(fileID)
+                filePathOrURL, err := b.tgFileURL(fileID)
                 if err != nil {
                         lastErr = fmt.Errorf("tg getFileURL: %w", err)
                         continue
                 }
-                dlReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL, nil)
+                reader, contentLength, err := b.openTgFile(ctx, filePathOrURL)
                 if err != nil {
-                        return nil, fmt.Errorf("create download request: %w", err)
-                }
-                resp, err := b.httpClient.Do(dlReq)
-                if err != nil {
-                        lastErr = fmt.Errorf("download: %w", err)
+                        lastErr = err
                         continue
                 }
-                if resp.StatusCode != 200 {
-                        resp.Body.Close()
-                        lastErr = fmt.Errorf("tg download status: %d url: %s", resp.StatusCode, fileURL)
-                        continue
-                }
-                contentLength := resp.ContentLength
                 slog.Debug("TG file download started", "size", formatFileSize(int(contentLength)), "file", fileName)
 
                 // Файлы > 2 ГБ доступны только отправителями с Telegram Premium
@@ -356,8 +370,8 @@ func (b *Bridge) uploadTgMediaToMax(ctx context.Context, fileID string, uploadTy
                         )
                 }
 
-                result, err := b.customUploadToMax(ctx, uploadType, resp.Body, fileName, contentLength)
-                resp.Body.Close()
+                result, err := b.customUploadToMax(ctx, uploadType, reader, fileName, contentLength)
+                reader.Close()
                 return result, err
         }
         slog.Error("uploadTgMediaToMax: all attempts failed", "attempts", maxAttempts, "file", fileName, "err", lastErr)

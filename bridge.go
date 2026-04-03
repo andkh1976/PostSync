@@ -275,15 +275,17 @@ func (b *Bridge) checkAccess(userID int64) bool {
 // ──────────────────────────────────────────────────────────────────────────────
 
 // tgFileURL возвращает прямой URL файла из TG — через custom API если настроен.
+// В локальном режиме (TELEGRAM_LOCAL=1) возвращает file:// путь к файлу на диске.
+// Для этого нужен shared volume между контейнерами telegram-bot-api и bridge.
 func (b *Bridge) tgFileURL(fileID string) (string, error) {
         file, err := b.tgBot.GetFile(tgbotapi.FileConfig{FileID: fileID})
         if err != nil {
                 return "", err
         }
         if b.cfg.TgAPIURL != "" {
-                // Локальный Telegram Bot API (--local) возвращает абсолютный путь в file.FilePath,
-                // но файлы раздаются по стандартному HTTP-пути: /file/bot<token>/<file_path>
-                return b.cfg.TgAPIURL + "/file/bot" + b.tgBot.Token + "/" + strings.TrimLeft(file.FilePath, "/"), nil
+                // Локальный Telegram Bot API (--local) возвращает абсолютный путь на диске.
+                // HTTP endpoint /file/ не работает — читаем файл прямо с диска (shared volume).
+                return file.FilePath, nil
         }
         return file.Link(b.tgBot.Token), nil
 }
