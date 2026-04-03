@@ -281,11 +281,9 @@ func (b *Bridge) tgFileURL(fileID string) (string, error) {
                 return "", err
         }
         if b.cfg.TgAPIURL != "" {
-                // В локальном режиме (TELEGRAM_LOCAL=1) file.FilePath — абсолютный путь на диске,
-                // например /var/lib/telegram-bot-api/bot.../photos/file.jpg.
-                // TgAPIURL не имеет trailing slash, поэтому обрезаем ведущий слеш у пути,
-                // чтобы избежать двойного слеша в URL (404).
-                return b.cfg.TgAPIURL + "/" + strings.TrimLeft(file.FilePath, "/"), nil
+                // Локальный Telegram Bot API (--local) возвращает абсолютный путь в file.FilePath,
+                // но файлы раздаются по стандартному HTTP-пути: /file/bot<token>/<file_path>
+                return b.cfg.TgAPIURL + "/file/bot" + b.tgBot.Token + "/" + strings.TrimLeft(file.FilePath, "/"), nil
         }
         return file.Link(b.tgBot.Token), nil
 }
