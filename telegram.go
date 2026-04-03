@@ -65,41 +65,22 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                 return
                         }
 
-                        // Дедупликация: пропускаем повторно доставленные webhook'и
-                        if b.tgUpdateSeen(update.UpdateID) {
-                                slog.Info("TG update DUPLICATE skipped", "updateID", update.UpdateID)
-                                continue
-                        }
-
-                        // === DIAGNOSTIC: логируем каждый входящий update ===
-                        {
-                                uid := update.UpdateID
-                                switch {
-                                case update.ChannelPost != nil:
-                                        slog.Info("TG update received", "updateID", uid, "type", "ChannelPost",
-                                                "chatID", update.ChannelPost.Chat.ID, "msgID", update.ChannelPost.MessageID,
-                                                "senderChat", update.ChannelPost.SenderChat)
-                                case update.EditedChannelPost != nil:
-                                        slog.Info("TG update received", "updateID", uid, "type", "EditedChannelPost",
-                                                "chatID", update.EditedChannelPost.Chat.ID)
-                                case update.Message != nil:
-                                        autoFwd := update.Message.IsAutomaticForward
-                                        slog.Info("TG update received", "updateID", uid, "type", "Message",
-                                                "chatID", update.Message.Chat.ID, "msgID", update.Message.MessageID,
-                                                "isAutoForward", autoFwd, "chatType", update.Message.Chat.Type)
-                                default:
-                                        slog.Info("TG update received", "updateID", uid, "type", "other")
-                                }
-                        }
-
                         // Обработка channel posts (crosspost forwarding only)
                         if update.EditedChannelPost != nil {
                                 b.handleTgEditedChannelPost(ctx, update.EditedChannelPost)
                                 continue
                         }
                         if update.ChannelPost != nil {
+                                // Дедупликация по (chatID, msgID): локальный TG Bot API
+                                // может генерировать два ChannelPost с разными UpdateID для одного поста
+                                if b.tgMsgSeen(update.ChannelPost.Chat.ID, update.ChannelPost.MessageID) {
+                                        slog.Info("TG ChannelPost DUPLICATE skipped",
+                                                "chatID", update.ChannelPost.Chat.ID,
+                                                "msgID", update.ChannelPost.MessageID,
+                                                "updateID", update.UpdateID)
+                                        continue
+                                }
                                 b.handleTgChannelPost(ctx, update.ChannelPost)
-
                                 continue
                         }
 

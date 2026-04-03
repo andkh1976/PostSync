@@ -86,13 +86,21 @@ type Bridge struct {
         // cancelledTasks — задачи, которые пользователь попросил отменить во время выполнения
         cancelledTasks sync.Map // key: int64 taskID, value: struct{}
 
-        // tgSeenIDs — кольцевой буфер для дедупликации Telegram UpdateID
-        // (защита от повторной доставки webhook локальным Telegram Bot API сервером)
+        // tgSeenMsgs — кольцевой буфер для дедупликации Telegram канальных постов.
+        // Локальный Telegram Bot API сервер может генерировать два ChannelPost
+        // с разными UpdateID для одного и того же поста — дедуплицируем по (chatID, msgID).
         tgSeenMu   sync.Mutex
-        tgSeenIDs  [256]int // хранит последние 256 UpdateID
+        tgSeenMsgs [256]tgMsgKey // хранит последние 256 (chatID, msgID)
         tgSeenHead int
         tgSeenLen  int
 }
+
+// tgMsgKey — ключ для дедупликации TG-сообщений.
+type tgMsgKey struct {
+        chatID int64
+        msgID  int
+}
+
 
 // NewBridge создаёт экземпляр Bridge.
 func NewBridge(cfg Config, repo Repository, tgBot *tgbotapi.BotAPI, maxApi *maxbot.Api) *Bridge {
@@ -134,24 +142,23 @@ func NewBridge(cfg Config, repo Repository, tgBot *tgbotapi.BotAPI, maxApi *maxb
         }
 }
 
-// tgUpdateSeen проверяет, был ли данный UpdateID уже обработан.
-// Если нет — запоминает его и возвращает false ("не видели").
-// Если да — возвращает true ("уже видели, дубль").
-func (b *Bridge) tgUpdateSeen(updateID int) bool {
+// tgMsgSeen проверяет, было ли сообщение (chatID, msgID) уже обработано.
+// Если нет — запоминает и возвращает false ("не видели").
+// Если да — возвращает true ("дубль").
+func (b *Bridge) tgMsgSeen(chatID int64, msgID int) bool {
+        key := tgMsgKey{chatID: chatID, msgID: msgID}
         b.tgSeenMu.Lock()
         defer b.tgSeenMu.Unlock()
 
-        // Проверяем, есть ли updateID в буфере
         for i := 0; i < b.tgSeenLen; i++ {
-                if b.tgSeenIDs[i] == updateID {
+                if b.tgSeenMsgs[i] == key {
                         return true // дубль
                 }
         }
 
-        // Запоминаем
-        b.tgSeenIDs[b.tgSeenHead] = updateID
-        b.tgSeenHead = (b.tgSeenHead + 1) % len(b.tgSeenIDs)
-        if b.tgSeenLen < len(b.tgSeenIDs) {
+        b.tgSeenMsgs[b.tgSeenHead] = key
+        b.tgSeenHead = (b.tgSeenHead + 1) % len(b.tgSeenMsgs)
+        if b.tgSeenLen < len(b.tgSeenMsgs) {
                 b.tgSeenLen++
         }
         return false
