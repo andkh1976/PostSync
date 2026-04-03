@@ -1,0 +1,123 @@
+I need to add support for forwarding large video files (up to 4 GB) from Telegram to the MAX messenger in this existing application.
+
+Current problem: The app forwards Telegram messages to MAX, but fails for video files larger than 50 MB because the standard Telegram Bot API limits uploads to 50 MB and downloads to 20 MB. Videos are also loaded fully into RAM before sending, which crashes the process for large files.
+
+Required changes:
+
+1. Add local Telegram Bot API server to docker-compose
+Add a new service telegram-bot-api using the official image aiogram/telegram-bot-api:latest:
+
+text
+telegram-bot-api:
+  image: aiogram/telegram-bot-api:latest
+  environment:
+    TELEGRAM_API_ID: ${TELEGRAM_API_ID}
+    TELEGRAM_API_HASH: ${TELEGRAM_API_HASH}
+    TELEGRAM_LOCAL: 1
+  volumes:
+    - tg-api-data:/var/lib/telegram-bot-api
+  ports:
+    - "8081:8081"
+  restart: unless-stopped
+The existing app service must:
+
+Add depends_on: [telegram-bot-api]
+
+Pass TG_API_URL: http://telegram-bot-api:8081 as environment variable
+
+Add tg-api-data to the volumes section.
+
+2. Rewrite file transfer to use streaming (no full RAM buffering)
+Find the existing code that downloads a file from Telegram and uploads it to MAX. Replace it with a streaming pipeline:
+
+Download the file from Telegram as a stream (do NOT load the full file into memory / buffer)
+
+Pipe the stream directly into a multipart POST request to MAX API
+
+Set request timeout to at least 15 minutes (large files over slow connections)
+
+Add knownLength / Content-Length to the multipart field if the MAX API requires it (get file size from Telegram's getFile response)
+
+Log transfer progress every ~10% for files larger than 100 MB
+
+Use the file URL pattern for the local server:
+
+text
+{TG_API_URL}/file/bot{BOT_TOKEN}/{file_path}
+3. Configure the bot client to use TG_API_URL
+Update the Telegram bot initialization code to use process.env.TG_API_URL (or TG_API_URL env var in Python) as the base API URL instead of the default https://api.telegram.org.
+
+If TG_API_URL is not set, fall back to https://api.telegram.org
+
+On startup, log which API server is being used and whether large file support is enabled
+
+4. Update environment configuration
+Update .env.example (or equivalent config file) to include:
+
+text
+# Telegram Bot
+BOT_TOKEN=your_bot_token_here
+
+# Required for local Bot API server (files > 50 MB)
+# Get these at https://my.telegram.org
+TELEGRAM_API_ID=
+TELEGRAM_API_HASH=
+
+# Local Bot API server URL (enables large file support)
+# Set to https://api.telegram.org to use cloud API (50 MB limit)
+TG_API_URL=http://telegram-bot-api:8081
+5. Add error handling for large files
+If file_size on the incoming Telegram message exceeds 2 GB, log a warning that Telegram Premium is required for the sender
+
+If the MAX API returns an error response during upload, log the status code, response body, and file name/size
+
+Wrap the streaming transfer in try/catch with a meaningful error message
+
+Important constraints — read before making any changes
+Do NOT buffer the full file in memory at any point during transfer
+
+Do NOT change any existing message forwarding logic for text, photos, or other non-video content
+
+Do NOT refactor, rename, or reorganize any existing files or functions unless directly required by the changes above
+
+Do NOT upgrade or change any existing dependencies in package.json / requirements.txt — only add new ones if strictly necessary
+
+Do NOT change existing Docker service configurations, port mappings, or volume definitions — only append new ones
+
+Do NOT modify existing environment variable names or their usage — only add new variables
+
+Do NOT change error handling, logging, or retry logic in any code path not related to file transfer
+
+Keep all existing environment variables — only add new ones
+
+Verification steps — complete ALL before pushing to GitHub
+Do not push any changes to GitHub until every step below passes.
+
+Step 1 — Build check
+Run the build command (e.g. npm run build or tsc --noEmit for TypeScript, or verify Python imports). Confirm there are no compilation or import errors.
+
+Step 2 — Docker Compose syntax check
+Run docker-compose config and confirm it outputs valid YAML with no errors. Verify the telegram-bot-api service and tg-api-data volume are present in the output.
+
+Step 3 — Existing tests
+Run the existing test suite (e.g. npm test or pytest). All previously passing tests must still pass. If no test suite exists, skip this step and note it explicitly.
+
+Step 4 — Static analysis / lint
+Run the linter if one is configured (e.g. eslint, flake8, mypy). No new errors introduced by the changes.
+
+Step 5 — Smoke test for streaming code
+Verify that the modified file transfer function:
+
+Does not call any .buffer(), readFile, or equivalent that loads the full file into memory
+
+Does correctly pass the stream object to the MAX API multipart request
+
+Has a timeout of at least 15 minutes set on the outgoing request
+
+Step 6 — Diff review
+List every file that was modified. For each file, briefly explain what was changed and why. Confirm that no files outside the expected scope were modified.
+
+Only after all steps above pass — commit the changes and push to GitHub with the commit message:
+
+text
+feat: add streaming support for large video forwarding (up to 4 GB)

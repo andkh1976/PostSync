@@ -1,0 +1,44 @@
+FROM golang:1.24-alpine AS builder
+
+ARG MAX_TOKEN
+ARG TG_TOKEN
+ARG DATABASE_URL
+ARG POSTGRES_PASSWORD
+ARG POSTGRES_DB
+ARG POSTGRES_USER
+ARG MINI_APP_URL
+ARG WEBHOOK_URL
+ARG LOG_LEVEL
+ARG ALLOWED_USERS
+
+RUN apk add --no-cache gcc musl-dev
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go mod tidy
+RUN CGO_ENABLED=1 go build -o /max-telegram-bridge-bot .
+
+FROM alpine:3.21
+
+ARG MAX_TOKEN
+ARG TG_TOKEN
+ARG DATABASE_URL
+ARG POSTGRES_PASSWORD
+ARG POSTGRES_DB
+ARG POSTGRES_USER
+ARG MINI_APP_URL
+ARG WEBHOOK_URL
+ARG LOG_LEVEL
+ARG ALLOWED_USERS
+
+RUN apk add --no-cache ca-certificates
+RUN adduser -D -h /app bridge
+USER bridge
+WORKDIR /app
+
+COPY --from=builder /max-telegram-bridge-bot /usr/local/bin/max-telegram-bridge-bot
+COPY --from=builder /src/frontend ./frontend
+
+ENTRYPOINT ["max-telegram-bridge-bot"]

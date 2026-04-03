@@ -1,0 +1,38 @@
+time=2026-04-03T15:08:42.913Z level=INFO msg="User whitelist enabled" count=2
+time=2026-04-03T15:08:42.915Z level=INFO msg="MTProto sync worker enabled" appID=27288145 session=tg_session.json
+time=2026-04-03T15:08:42.915Z level=INFO msg="Mini App configured" url=https://postsync.autho-n8n.ru/app/
+time=2026-04-03T15:08:42.995Z level=INFO msg="migrations: up to date"
+time=2026-04-03T15:08:42.995Z level=INFO msg="DB: PostgreSQL"
+time=2026-04-03T15:08:42.997Z level=INFO msg="Telegram bot started (local API — large file support enabled, up to 4 GB with Premium)" username=repostpostalgoritmbot api=http://telegram-bot-api:8081
+time=2026-04-03T15:08:43.131Z level=INFO msg="MAX bot started" name=Бот
+time=2026-04-03T15:08:43.351Z level=INFO msg="Mini App static served" path=frontend url=/app/
+time=2026-04-03T15:08:43.351Z level=INFO msg="Webhook mode enabled" url=https://postsync.autho-n8n.ru
+time=2026-04-03T15:08:43.351Z level=INFO msg="HTTP server starting (webhooks + API)" addr=:8443
+time=2026-04-03T15:08:43.355Z level=INFO msg="TG webhook mode"
+time=2026-04-03T15:08:43.403Z level=INFO msg="preloadMaxChats: loaded" count=1
+time=2026-04-03T15:08:43.413Z level=INFO msg="MAX webhook mode"
+time=2026-04-03T15:08:45.437Z level=INFO msg="MTProto: starting phone authorization" phone=+79219806372
+time=2026-04-03T15:08:45.629Z level=INFO msg="MTProto: waiting for auth code" hint="POST /api/tg-auth-code or write code to /tmp/tg_auth_code"
+time=2026-04-03T15:10:37.891Z level=INFO msg="API /tasks" owner=325388237 count=0
+time=2026-04-03T15:10:38.040Z level=INFO msg="API /channels" owner=325388237 platform=tg count=1
+time=2026-04-03T15:10:43.064Z level=INFO msg="API /tg-auth-code: code written to file"
+time=2026-04-03T15:10:45.673Z level=INFO msg="MTProto: auth code read from file"
+time=2026-04-03T15:10:45.764Z level=INFO msg="MTProto: waiting for 2FA password" hint="POST /api/tg-2fa-password or write password to /tmp/tg_2fa_password"
+time=2026-04-03T15:11:11.269Z level=INFO msg="API /tg-2fa-password: password written to file"
+time=2026-04-03T15:11:11.544Z level=INFO msg="API /tg-auth-code: code written to file"
+time=2026-04-03T15:11:11.772Z level=INFO msg="MTProto: 2FA password received from file"
+time=2026-04-03T15:11:12.608Z level=INFO msg="MTProto: authorization successful"
+time=2026-04-03T15:11:12.608Z level=INFO msg="MTProto client ready, starting sync worker"
+time=2026-04-03T15:11:12.608Z level=INFO msg="Sync worker started"
+time=2026-04-03T15:13:17.556Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=2 maxAttempts=5 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:13:17.708Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=2 maxAttempts=5 err="tg download status: 404"
+time=2026-04-03T15:13:20.560Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=3 maxAttempts=5 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:13:20.713Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=3 maxAttempts=5 err="tg download status: 404"
+time=2026-04-03T15:13:23.563Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=4 maxAttempts=5 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:13:23.718Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=4 maxAttempts=5 err="tg download status: 404"
+time=2026-04-03T15:13:26.565Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=5 maxAttempts=5 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:13:26.723Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=5 maxAttempts=5 err="tg download status: 404"
+time=2026-04-03T15:13:29.568Z level=ERROR msg="uploadTgPhotoToMax: all attempts failed" attempts=5 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:13:29.568Z level=ERROR msg="TG→MAX photo upload failed" err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:13:29.727Z level=ERROR msg="uploadTgPhotoToMax: all attempts failed" attempts=5 err="tg download status: 404"
+time=2026-04-03T15:13:29.727Z level=ERROR msg="TG→MAX photo upload failed" err="tg download status: 404"

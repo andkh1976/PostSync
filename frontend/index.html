@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bridge Control Panel</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --success: #16a34a;
+      --warning: #d97706;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111827;
+        --card: #1f2937;
+        --text: #f9fafb;
+        --muted: #9ca3af;
+        --border: #374151;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title .icon { font-size: 18px; }
+
+    .channel-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .channel-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .channel-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .channel-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .channel-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .direction-select {
+      flex: 1;
+      min-width: 120px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .toggle input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #ccc;
+      border-radius: 22px;
+      transition: 0.2s;
+    }
+
+    .toggle-slider:before {
+      content: '';
+      position: absolute;
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.2s;
+    }
+
+    input:checked + .toggle-slider { background: var(--success); }
+    input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+    .save-btn {
+      padding: 5px 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .save-btn:hover { background: var(--primary-hover); }
+
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .form-row label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .select-field, .date-field {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+    .date-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .date-row-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .action-btns {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      flex: 1;
+      min-width: 130px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn:active { opacity: 0.8; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-danger  { background: var(--danger);  color: white; }
+
+    .status-bar {
+      margin-top: 10px;
+      font-size: 13px;
+      min-height: 20px;
+      color: var(--muted);
+    }
+
+    .status-bar.ok   { color: var(--success); }
+    .status-bar.err  { color: var(--danger); }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 16px 0;
+    }
+
+    .loading {
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Sprint 4: Progress Bar ───────────────────────────────────────── */
+    .task-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .task-item {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .task-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .task-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+
+    .badge-pending    { background: #fef3c7; color: #92400e; }
+    .badge-processing { background: #dbeafe; color: #1e40af; }
+    .badge-done       { background: #d1fae5; color: #065f46; }
+    .badge-failed     { background: #fee2e2; color: #991b1b; }
+    .badge-cancelled  { background: #f3f4f6; color: #6b7280; }
+
+    @media (prefers-color-scheme: dark) {
+      .badge-pending    { background: #3d2c00; color: #fcd34d; }
+      .badge-processing { background: #1e3a5f; color: #93c5fd; }
+      .badge-done       { background: #064e3b; color: #6ee7b7; }
+      .badge-failed     { background: #450a0a; color: #fca5a5; }
+      .badge-cancelled  { background: #1f2937; color: #9ca3af; }
+    }
+
+    .progress-bar-wrap {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .progress-bar-fill.pending    { background: var(--warning); width: 10%; }
+    .progress-bar-fill.processing { background: var(--primary); width: 55%; animation: pulse-bar 1.5s ease-in-out infinite; }
+    .progress-bar-fill.done       { background: var(--success); width: 100%; }
+    .progress-bar-fill.failed     { background: var(--danger);  width: 100%; }
+
+    @keyframes pulse-bar {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.6; }
+    }
+
+    .task-meta {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .task-error {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--danger);
+      word-break: break-word;
+    }
+
+    /* ── Sprint 4: Profile ───────────────────────────────────────────── */
+    .profile-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .profile-row:last-child { border-bottom: none; }
+
+    .profile-label { color: var(--muted); font-size: 13px; }
+
+    .profile-value { font-weight: 600; }
+
+    .sub-active   { color: var(--success); }
+    .sub-inactive { color: var(--muted); }
+
+    .add-pair-form {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .add-pair-form h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .input-field {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .input-label {
+      font-size: 12px;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .input-group {
+      margin-bottom: 10px;
+    }
+
+    .delete-btn {
+      padding: 4px 10px;
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .delete-btn:hover { background: var(--danger); color: white; }
+
+    .channel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>⚙️ Bridge Control Panel</h1>
+<p class="subtitle">Управление синхронизацией TG ↔ MAX</p>
+
+<!-- ── Профиль (Sprint 4) ──────────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-title"><span class="icon">👤</span> Профиль</div>
+  <div id="profile-container" class="loading"><span class="spinner"></span>Загрузка...</div>
+</div>
+
+<!-- ── Активные связки каналов ──────────────────────────────────────────── -->
+<div class="card">
+  <div class="card-title"><span class="icon">🔗</span> Активные связки каналов</div>
+  <div id="channels-container" class="loading"><span class="spinner"></span>Загрузка...</div>
+
+  <div class="add-pair-form">
+    <h3>+ Добавить связку</h3>
+    <div class="input-group">
+      <label class="input-label" for="pair-tg-id">ID Telegram-канала (например: -1001234567890)</label>
+      <input type="number" id="pair-tg-id" class="input-field" placeholder="-1001234567890" />
+    </div>
+    <div class="input-group">
+      <label class="input-label" for="pair-max-select">MAX-канал (куда пересылать)</label>
+      <select id="pair-max-select" class="input-field">
+        <option value="">— выберите MAX-канал —</option>
+      </select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Если список пуст — добавьте бота в MAX-канал и напишите там /chatid</div>
+    </div>
+    <button class="btn btn-primary" id="btn-add-pair" onclick="addPair()" style="width:100%">
+      🔗 Создать связку
+    </button>
+    <div class="status-bar" id="pair-status"></div>
+  </div>
+</div>
+
+<!-- ── Задачи синхронизации (Sprint 4) ─────────────────────────────────── -->
+<div class="card">
+  <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+    <span><span class="icon">⏳</span> Задачи синхронизации</span>
+    <button class="btn btn-danger" id="btn-clear-history" onclick="clearTaskHistory()" style="font-size:11px;padding:4px 10px">🗑 Очистить историю</button>
+  </div>
+  <div id="tasks-container" class="loading"><span class="spinner"></span>Загрузка...</div>
+</div>
+
+<!-- ── Синхронизация истории ─────────────────────────────────────────────── -->
+<div class="card" id="sync-card">
+  <div class="card-title"><span class="icon">📥</span> Синхронизация истории</div>
+  <div id="sync-unavailable" style="display:none" class="empty-state">
+    ⚠️ Недоступно — требуется настройка MTProto.<br>
+    Задайте переменные <b>TG_APP_ID</b>, <b>TG_APP_HASH</b> и <b>TG_PHONE</b> для активации.
+  </div>
+
+  <!-- Форма авторизации MTProto (код + 2FA пароль) -->
+  <div id="tg-auth-block" style="display:none">
+    <div class="empty-state" style="background:rgba(255,193,7,0.12); border:1px solid rgba(255,193,7,0.4); margin-bottom:12px">
+      🔐 MTProto требует подтверждения. Telegram отправил код на номер телефона.<br>
+      Введите код и, если включена двухэтапная проверка, облачный пароль.
+    </div>
+    <div class="form-row">
+      <div style="flex:1">
+        <label for="tg-auth-code-input">Код из Telegram (SMS или приложение)</label>
+        <input type="text" id="tg-auth-code-input" class="date-field" style="width:100%" placeholder="12345" maxlength="10" inputmode="numeric" />
+      </div>
+      <div style="flex:1">
+        <label for="tg-2fa-pwd-input">Облачный пароль 2FA <span style="opacity:.6;font-size:.85em">(если включён)</span></label>
+        <input type="password" id="tg-2fa-pwd-input" class="date-field" style="width:100%" placeholder="••••••••" />
+      </div>
+    </div>
+    <div class="action-btns">
+      <button class="btn btn-primary" onclick="submitTgAuth()">Отправить</button>
+    </div>
+    <div class="status-bar" id="tg-auth-status"></div>
+  </div>
+
+  <div id="sync-form">
+
+  <div class="form-row">
+    <div>
+      <label for="sync-channel">Канал</label>
+      <select id="sync-channel" class="select-field">
+        <option value="">— выберите связку —</option>
+      </select>
+    </div>
+
+    <div>
+      <label>Период</label>
+      <div class="date-row-pair">
+        <div>
+          <label for="sync-start" style="font-size:11px;color:var(--muted)">Начало</label>
+          <input type="text" id="sync-start" class="date-field" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10" />
+        </div>
+        <div>
+          <label for="sync-end" style="font-size:11px;color:var(--muted)">Конец</label>
+          <input type="text" id="sync-end" class="date-field" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-btns">
+    <button class="btn btn-primary" id="btn-sync" onclick="startSync()">
+      ▶ Синхронизация
+    </button>
+    <button class="btn btn-danger" id="btn-clear" onclick="clearHistory()">
+      🗑 Сбросить историю
+    </button>
+  </div>
+  <div class="status-bar" id="sync-status"></div>
+  </div><!-- /sync-form -->
+</div>
+
+<script>
+  // ─── Telegram WebApp bootstrap ───────────────────────────────────────────
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+
+    // Применяем цветовую схему Telegram/MAX (Sprint 4: улучшенная поддержка тем)
+    const tp = tg.themeParams || {};
+    if (tp.bg_color)              document.documentElement.style.setProperty('--bg',    tp.bg_color);
+    if (tp.secondary_bg_color)    document.documentElement.style.setProperty('--card',  tp.secondary_bg_color);
+    if (tp.text_color)            document.documentElement.style.setProperty('--text',  tp.text_color);
+    if (tp.hint_color)            document.documentElement.style.setProperty('--muted', tp.hint_color);
+    if (tp.button_color)          document.documentElement.style.setProperty('--primary', tp.button_color);
+    if (tp.button_text_color)     document.documentElement.style.setProperty('--btn-text', tp.button_text_color);
+    if (tp.destructive_text_color) document.documentElement.style.setProperty('--danger', tp.destructive_text_color);
+    if (tp.section_separator_color) document.documentElement.style.setProperty('--border', tp.section_separator_color);
+  }
+
+  // ─── Auth header ──────────────────────────────────────────────────────────
+  function authHeader() {
+    if (tg && tg.initData && tg.initData.length > 0) {
+      return 'tg ' + tg.initData;
+    }
+    return null;
+  }
+
+  // ─── API base URL ─────────────────────────────────────────────────────────
+  const API_BASE = window.location.origin;
+
+  async function apiFetch(path, opts = {}) {
+    const auth = authHeader();
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    if (auth) headers['Authorization'] = auth;
+    const res = await fetch(API_BASE + path, { ...opts, headers });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || 'Ошибка ' + res.status);
+    return body;
+  }
+
+  // ─── Profile (Sprint 4) ───────────────────────────────────────────────────
+  async function loadProfile() {
+    const container = document.getElementById('profile-container');
+    try {
+      const p = await apiFetch('/api/profile');
+      const subText = p.has_subscription
+        ? `<span class="sub-active">✓ Активна${p.subscription_end ? ' до ' + p.subscription_end.split('T')[0] : ''}</span>`
+        : '<span class="sub-inactive">Бесплатный план</span>';
+      container.innerHTML = `
+        <div class="profile-row">
+          <span class="profile-label">ID пользователя</span>
+          <span class="profile-value">${p.user_id}</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">Платформа</span>
+          <span class="profile-value">${p.platform === 'tg' ? 'Telegram' : 'MAX'}</span>
+        </div>
+        ${p.first_name ? `<div class="profile-row">
+          <span class="profile-label">Имя</span>
+          <span class="profile-value">${escHtml(p.first_name)}${p.username ? ' @' + escHtml(p.username) : ''}</span>
+        </div>` : ''}
+        <div class="profile-row">
+          <span class="profile-label">Подписка</span>
+          <span class="profile-value">${subText}</span>
+        </div>
+      `;
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state">⚠️ Откройте приложение через кнопку в боте.</div>';
+    }
+  }
+
+  // ─── Tasks / Progress Bar (Sprint 4) ──────────────────────────────────────
+  const statusLabels = { pending: 'Ожидание', processing: 'В процессе', done: 'Завершено', failed: 'Ошибка', cancelled: 'Отменена' };
+
+  async function loadTasks() {
+    const container = document.getElementById('tasks-container');
+    try {
+      const tasks = await apiFetch('/api/tasks');
+      if (!tasks || tasks.length === 0) {
+        container.innerHTML = '<div class="empty-state">Нет задач синхронизации.</div>';
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'task-list';
+      tasks.forEach(t => {
+        const item = document.createElement('div');
+        item.className = 'task-item';
+        const isActive = t.status === 'pending' || t.status === 'processing';
+        item.innerHTML = `
+          <div class="task-header">
+            <span class="task-title">Задача #${t.id}</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="task-badge badge-${t.status}">${statusLabels[t.status] || t.status}</span>
+              ${isActive ? `<button onclick="cancelTask(${t.id})" style="font-size:11px;padding:2px 8px;background:#e74c3c;color:#fff;border:none;border-radius:4px;cursor:pointer">⏹ Стоп</button>` : ''}
+            </div>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill ${t.status}"></div>
+          </div>
+          <div class="task-meta">
+            TG ${t.tg_chat_id} → MAX ${t.max_chat_id} &nbsp;·&nbsp; ${t.start_date} — ${t.end_date}
+          </div>
+          ${t.error ? `<div class="task-error">⚠ ${escHtml(t.error)}</div>` : ''}
+        `;
+        list.appendChild(item);
+      });
+      container.innerHTML = '';
+      container.appendChild(list);
+
+      // Автообновление если есть активные задачи
+      const hasActive = tasks.some(t => t.status === 'pending' || t.status === 'processing');
+      if (hasActive) {
+        setTimeout(loadTasks, 5000);
+      }
+    } catch (e) {
+      container.innerHTML = '<div class="empty-state">Ошибка загрузки задач.</div>';
+    }
+  }
+
+  async function cancelTask(taskID) {
+    try {
+      await apiFetch('/api/tasks/cancel', { method: 'POST', body: JSON.stringify({ task_id: taskID }) });
+      await loadTasks();
+    } catch (e) {
+      alert('Не удалось отменить задачу: ' + e.message);
+    }
+  }
+
+  async function clearTaskHistory() {
+    setLoading('btn-clear-history', true);
+    try {
+      await apiFetch('/api/tasks/history', { method: 'DELETE' });
+      await loadTasks();
+    } catch (e) {
+      alert('Не удалось очистить историю: ' + e.message);
+    } finally {
+      setLoading('btn-clear-history', false);
+    }
+  }
+
+  // ─── Channels ─────────────────────────────────────────────────────────────
+  let channels = [];
+
+  async function loadChannels() {
+    const container = document.getElementById('channels-container');
+    try {
+      channels = await apiFetch('/api/channels');
+      renderChannels(container);
+      populateSyncSelect();
+    } catch (e) {
+      if (e.message && e.message.includes('unauthorized')) {
+        container.innerHTML = '<div class="empty-state">⚠️ Авторизация недоступна.<br>Откройте это приложение через кнопку в боте.</div>';
+      } else {
+        container.innerHTML = '<div class="empty-state">Ошибка загрузки: ' + escHtml(e.message) + '</div>';
+      }
+    }
+  }
+
+  function renderChannels(container) {
+    if (!channels || channels.length === 0) {
+      container.innerHTML = '<div class="empty-state">Нет активных связок.<br>Введите ID каналов ниже, чтобы создать первую связку.</div>';
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'channel-list';
+    channels.forEach((ch, idx) => {
+      const title = ch.tg_title || ('TG: ' + ch.tg_chat_id);
+
+      const item = document.createElement('div');
+      item.className = 'channel-item';
+      item.innerHTML = `
+        <div class="channel-header">
+          <div class="channel-name">${escHtml(title)}</div>
+          <button class="delete-btn" onclick="deletePair(${ch.max_chat_id})">Удалить</button>
+        </div>
+        <div class="channel-meta">TG: ${ch.tg_chat_id} &nbsp;·&nbsp; MAX: ${ch.max_chat_id} &nbsp;·&nbsp; TG → MAX</div>
+        <div class="channel-controls">
+          <label class="toggle-label">
+            <span class="toggle">
+              <input type="checkbox" id="ll-${idx}" ${ch.live_listen ? 'checked' : ''}
+                     onchange="saveSettings(${idx})">
+              <span class="toggle-slider"></span>
+            </span>
+            Живое прослушивание
+          </label>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+    container.innerHTML = '';
+    container.appendChild(list);
+  }
+
+  async function addPair() {
+    const tgID  = parseInt(document.getElementById('pair-tg-id').value, 10);
+    const maxID = parseInt(document.getElementById('pair-max-select').value, 10);
+    if (!tgID) return showStatus('pair-status', 'Введите ID Telegram-канала', 'err');
+    if (!maxID) return showStatus('pair-status', 'Выберите MAX-канал из списка', 'err');
+
+    setLoading('btn-add-pair', true);
+    try {
+      await apiFetch('/api/channels/pair', {
+        method: 'POST',
+        body: JSON.stringify({ tg_chat_id: tgID, max_chat_id: maxID }),
+      });
+      document.getElementById('pair-tg-id').value = '';
+      document.getElementById('pair-max-select').value = '';
+      showStatus('pair-status', '✓ Связка создана', 'ok');
+      await loadChannels();
+    } catch (e) {
+      showStatus('pair-status', '✗ ' + e.message, 'err');
+    } finally {
+      setLoading('btn-add-pair', false);
+    }
+  }
+
+  async function deletePair(maxChatID) {
+    if (!confirm('Удалить связку с MAX ID ' + maxChatID + '?')) return;
+    try {
+      await apiFetch('/api/channels/delete', {
+        method: 'DELETE',
+        body: JSON.stringify({ max_chat_id: maxChatID }),
+      });
+      showStatus('pair-status', '✓ Связка удалена', 'ok');
+      await loadChannels();
+    } catch (e) {
+      showStatus('pair-status', '✗ ' + e.message, 'err');
+    }
+  }
+
+  async function saveSettings(idx) {
+    const ch = channels[idx];
+    const ll  = document.getElementById('ll-'  + idx).checked;
+    try {
+      const updated = await apiFetch('/api/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ max_chat_id: ch.max_chat_id, direction: 'tg>max', live_listen: ll }),
+      });
+      channels[idx] = { ...channels[idx], direction: updated.direction, live_listen: updated.live_listen };
+      showStatus('sync-status', '✓ Настройки сохранены', 'ok');
+    } catch (e) {
+      showStatus('sync-status', '✗ ' + e.message, 'err');
+    }
+  }
+
+  function populateSyncSelect() {
+    const sel = document.getElementById('sync-channel');
+    sel.innerHTML = '<option value="">— выберите связку —</option>';
+    (channels || []).forEach(ch => {
+      const title = ch.tg_title || ('TG: ' + ch.tg_chat_id);
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ tg: ch.tg_chat_id, max: ch.max_chat_id });
+      opt.textContent = title;
+      sel.appendChild(opt);
+    });
+    // Дефолтные даты: последние 30 дней
+    const today = new Date();
+    const ago30 = new Date(today); ago30.setDate(today.getDate() - 30);
+    document.getElementById('sync-end').value   = dateStr(today);
+    document.getElementById('sync-start').value = dateStr(ago30);
+  }
+
+  // ─── Sync ─────────────────────────────────────────────────────────────────
+  async function startSync() {
+    const { tgChatID, maxChatID, startDate, endDate } = getFormValues();
+    if (!tgChatID) return showStatus('sync-status', 'Выберите канал', 'err');
+    if (!startDate || !endDate) return showStatus('sync-status', 'Укажите период в формате ДД.ММ.ГГГГ', 'err');
+
+    setLoading('btn-sync', true);
+    try {
+      const res = await apiFetch('/api/sync/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          tg_chat_id:  tgChatID,
+          max_chat_id: maxChatID,
+          start_date:  startDate,
+          end_date:    endDate,
+        }),
+      });
+      showStatus('sync-status', `✓ Задача #${res.task_id} создана (статус: ${res.status})`, 'ok');
+      // Обновляем список задач после запуска
+      setTimeout(loadTasks, 800);
+    } catch (e) {
+      showStatus('sync-status', '✗ ' + e.message, 'err');
+    } finally {
+      setLoading('btn-sync', false);
+    }
+  }
+
+  async function clearHistory() {
+    const { tgChatID, startDate, endDate } = getFormValues();
+    if (!tgChatID) return showStatus('sync-status', 'Выберите канал', 'err');
+    if (!startDate || !endDate) return showStatus('sync-status', 'Укажите период в формате ДД.ММ.ГГГГ', 'err');
+
+    const confirmed = confirm(
+      `Сбросить маппинг сообщений?\n\nКанал: TG ${tgChatID}\nПериод: ${startDate} — ${endDate}\n\nЭто не удаляет сами посты, только внутреннее соответствие ID.`
+    );
+    if (!confirmed) return;
+
+    setLoading('btn-clear', true);
+    try {
+      await apiFetch('/api/history/clear', {
+        method: 'POST',
+        body: JSON.stringify({ tg_chat_id: tgChatID, start_date: startDate, end_date: endDate }),
+      });
+      showStatus('sync-status', '✓ Маппинг сообщений за период очищен', 'ok');
+    } catch (e) {
+      showStatus('sync-status', '✗ ' + e.message, 'err');
+    } finally {
+      setLoading('btn-clear', false);
+    }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  function getFormValues() {
+    const sel = document.getElementById('sync-channel');
+    let tgChatID = null, maxChatID = null;
+    if (sel.value) {
+      try { const v = JSON.parse(sel.value); tgChatID = v.tg; maxChatID = v.max; } catch(_) {}
+    }
+    return {
+      tgChatID,
+      maxChatID,
+      startDate: parseDateInput(document.getElementById('sync-start').value),
+      endDate:   parseDateInput(document.getElementById('sync-end').value),
+    };
+  }
+
+  function showStatus(id, msg, type) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status-bar ' + (type || '');
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 5000);
+  }
+
+  function setLoading(btnId, loading) {
+    document.getElementById(btnId).disabled = loading;
+  }
+
+  function dateStr(d) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
+  // Парсит ДД.ММ.ГГГГ → YYYY-MM-DD для API; возвращает '' если формат неверный
+  function parseDateInput(s) {
+    const m = (s || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!m) return '';
+    return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ─── Config ───────────────────────────────────────────────────────────────
+  async function loadConfig() {
+    try {
+      const cfg = await fetch(API_BASE + '/api/config').then(r => r.json());
+      if (!cfg.mtproto_enabled) {
+        document.getElementById('sync-unavailable').style.display = '';
+        document.getElementById('sync-form').style.display = 'none';
+        document.getElementById('tg-auth-block').style.display = 'none';
+      } else if (!cfg.mtproto_authorized) {
+        // MTProto включён, но сессия не авторизована — показываем форму кода
+        document.getElementById('tg-auth-block').style.display = '';
+        document.getElementById('sync-form').style.display = 'none';
+        document.getElementById('sync-unavailable').style.display = 'none';
+      }
+    } catch (e) {
+      // если не получилось — показываем форму как есть
+    }
+  }
+
+  async function submitTgAuth() {
+    const code = document.getElementById('tg-auth-code-input').value.trim();
+    const pwd  = document.getElementById('tg-2fa-pwd-input').value.trim();
+    const status = document.getElementById('tg-auth-status');
+    if (!code) { status.textContent = '⚠️ Введите код из Telegram'; status.style.color = 'var(--danger)'; return; }
+    status.textContent = 'Отправляем…'; status.style.color = '';
+    try {
+      // Сначала отправляем 2FA пароль если заполнен — он должен быть в файле до обработки кода
+      if (pwd) {
+        await fetch(API_BASE + '/api/tg-2fa-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+      }
+      // Теперь отправляем код
+      const res = await fetch(API_BASE + '/api/tg-auth-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      if (res.ok) {
+        status.textContent = '✅ Данные отправлены, авторизация в процессе…';
+        status.style.color = 'var(--success, #4caf50)';
+        setTimeout(loadConfig, 10000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        status.textContent = '❌ ' + (err.error || 'Ошибка');
+        status.style.color = 'var(--danger)';
+      }
+    } catch (e) {
+      status.textContent = '❌ Сетевая ошибка';
+      status.style.color = 'var(--danger)';
+    }
+  }
+
+  // ─── MAX Chats ────────────────────────────────────────────────────────────
+  async function loadMaxChats() {
+    const sel = document.getElementById('pair-max-select');
+    if (!sel) return;
+    try {
+      const chats = await fetch(API_BASE + '/api/max/chats').then(r => r.json());
+      sel.innerHTML = '<option value="">— выберите MAX-канал —</option>';
+      if (Array.isArray(chats) && chats.length > 0) {
+        chats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.chat_id;
+          const title = c.title || '(без названия)';
+          const typeLabel = c.chat_type === 'channel' ? '📢' : c.chat_type === 'chat' ? '👥' : '💬';
+          const hasOwnEmoji = /^\p{Emoji}/u.test(title);
+          const prefix = hasOwnEmoji ? '' : typeLabel + ' ';
+          opt.textContent = `${prefix}${title} [${c.chat_id}]`;
+          sel.appendChild(opt);
+        });
+      } else {
+        const opt = document.createElement('option');
+        opt.disabled = true;
+        opt.textContent = 'Нет доступных чатов — добавьте бота в MAX-канал';
+        sel.appendChild(opt);
+      }
+    } catch (e) {
+      // Не критично — подсказка внизу объяснит что делать
+    }
+  }
+
+  // ─── Автоформат дат (ДД.ММ.ГГГГ) ─────────────────────────────────────────
+  function initDateInput(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      let v = el.value.replace(/\D/g, '').slice(0, 8);
+      if (v.length > 4) v = v.slice(0,2) + '.' + v.slice(2,4) + '.' + v.slice(4);
+      else if (v.length > 2) v = v.slice(0,2) + '.' + v.slice(2);
+      el.value = v;
+    });
+  }
+  initDateInput('sync-start');
+  initDateInput('sync-end');
+
+  // ─── Init ─────────────────────────────────────────────────────────────────
+  loadProfile();
+  loadChannels();
+  loadTasks();
+  loadConfig();
+  loadMaxChats();
+</script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+Please make the following three targeted changes to the PostSync codebase. Do not refactor anything else.
+
+---
+
+### Change 1 — bridge.go: Comment out old command registration
+
+In the `registerCommands()` function in `bridge.go`, comment out all `BotCommand` entries for `/bridge`, `/unbridge`, and `/crosspost` in BOTH `tgbotapi.NewSetMyCommands(...)` and `tgbotapi.NewSetMyCommandsWithScope(...)` calls.
+
+Leave only `/help` (and optionally `/start` if present) as active commands.
+
+Example result for groupCmds:
+```go
+groupCmds := tgbotapi.NewSetMyCommands(
+    // tgbotapi.BotCommand{Command: "bridge", Description: "Связать чат с MAX-чатом"},
+    // tgbotapi.BotCommand{Command: "unbridge", Description: "Удалить связку чатов"},
+    // tgbotapi.BotCommand{Command: "crosspost", Description: "Список связок кросспостинга"},
+    tgbotapi.BotCommand{Command: "help", Description: "Инструкция"},
+)
+```
+
+Apply the same pattern to `channelCmds`.
+
+---
+
+### Change 2 — api.go: Add POST /api/channels/pair endpoint
+
+In `api.go`, inside `registerAPIRoutes()`, add a new route:
+
+```go
+mux.HandleFunc("POST /api/channels/pair", b.handlePairChannels)
+```
+
+Then implement the handler `handlePairChannels` in the same file:
+
+```go
+// handlePairChannels creates a new channel pairing via Mini App.
+// Request body: { "tg_channel_id": -100123456789, "max_chat_id": 987654321, "user_id": 111222333 }
+func (b *Bridge) handlePairChannels(w http.ResponseWriter, r *http.Request) {
+    if !b.validateMiniAppRequest(w, r) {
+        return
+    }
+
+    var req struct {
+        TgChannelID int64 `json:"tg_channel_id"`
+        MaxChatID   int64 `json:"max_chat_id"`
+        UserID      int64 `json:"user_id"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "invalid request body", http.StatusBadRequest)
+        return
+    }
+    if req.TgChannelID == 0 || req.MaxChatID == 0 {
+        http.Error(w, "tg_channel_id and max_chat_id are required", http.StatusBadRequest)
+        return
+    }
+    if !b.isUserAllowed(req.UserID) {
+        http.Error(w, "forbidden", http.StatusForbidden)
+        return
+    }
+
+    if err := b.repo.AddCrosspost(req.TgChannelID, req.MaxChatID, req.UserID, req.UserID); err != nil {
+        slog.Error("handlePairChannels: AddCrosspost failed", "err", err)
+        http.Error(w, "failed to create pairing", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+```
+
+Note: adapt the `AddCrosspost` call signature to match what's already defined in `repository.go` / `sqlite.go` / `postgres.go`.
+
+---
+
+### Change 3 — README.md: Update section "4. Свяжите каналы"
+
+Find the section in README.md that describes the old pairing procedure (forwarding a post, copying an ID, typing `/bridge`).
+
+Replace it with the following text:
+
+```markdown
+## 4. Свяжите каналы
+
+Откройте Mini App через кнопку в боте и перейдите на вкладку **«Каналы»**.
+
+1. Нажмите **«Добавить связку»**.
+2. Выберите Telegram-канал из списка доступных вам каналов.
+3. Выберите MAX-чат, с которым хотите синхронизировать публикации.
+4. Нажмите **«Сохранить»** — связка создаётся мгновенно через API.
+
+После создания связки посты из Telegram-канала будут автоматически появляться в выбранном MAX-чате. Управлять существующими связками (просмотр, удаление) можно там же в Mini App.
+```
+
+---
+
+After making all three changes, verify the project still compiles (`go build ./...`) and no existing tests are broken (`go test ./...`).

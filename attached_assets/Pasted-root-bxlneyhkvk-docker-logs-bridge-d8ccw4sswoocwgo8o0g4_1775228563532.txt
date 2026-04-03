@@ -1,0 +1,41 @@
+root@bxlneyhkvk:~# docker logs bridge-d8ccw4sswoocwgo8o0g4ww8s-145412352608 --tail 50
+time=2026-04-03T14:56:50.696Z level=INFO msg="User whitelist enabled" count=2
+time=2026-04-03T14:56:50.696Z level=INFO msg="MTProto sync worker enabled" appID=27288145 session=tg_session.json
+time=2026-04-03T14:56:50.696Z level=INFO msg="Mini App configured" url=https://postsync.autho-n8n.ru/app/
+time=2026-04-03T14:56:50.772Z level=INFO msg="migrations: up to date"
+time=2026-04-03T14:56:50.772Z level=INFO msg="DB: PostgreSQL"
+time=2026-04-03T14:56:50.774Z level=INFO msg="Telegram bot started (local API — large file support enabled, up to 4 GB with Premium)" username=repostpostalgoritmbot api=http://telegram-bot-api:8081
+time=2026-04-03T14:56:50.864Z level=INFO msg="MAX bot started" name=Бот
+time=2026-04-03T14:56:50.956Z level=INFO msg="Mini App static served" path=frontend url=/app/
+time=2026-04-03T14:56:50.956Z level=INFO msg="Webhook mode enabled" url=https://postsync.autho-n8n.ru
+time=2026-04-03T14:56:50.956Z level=INFO msg="HTTP server starting (webhooks + API)" addr=:8443
+time=2026-04-03T14:56:50.958Z level=INFO msg="TG webhook mode"
+time=2026-04-03T14:56:51.007Z level=INFO msg="MAX webhook mode"
+time=2026-04-03T14:56:51.012Z level=INFO msg="preloadMaxChats: loaded" count=1
+time=2026-04-03T14:56:53.436Z level=INFO msg="MTProto: starting phone authorization" phone=+79219806372
+time=2026-04-03T14:56:53.702Z level=INFO msg="MTProto: waiting for auth code" hint="POST /api/tg-auth-code or write code to /tmp/tg_auth_code"
+time=2026-04-03T14:57:11.404Z level=WARN msg="API /profile auth failed" err="missing Authorization header" ip=172.21.0.5:33796
+time=2026-04-03T14:57:11.406Z level=WARN msg="API /tasks auth failed" err="missing Authorization header" ip=172.21.0.5:33796
+time=2026-04-03T14:57:11.406Z level=WARN msg="API /channels auth failed" err="missing Authorization header" ip=172.21.0.5:33796
+time=2026-04-03T14:57:41.530Z level=INFO msg="API /tg-2fa-password: password written to file"
+time=2026-04-03T14:57:41.807Z level=INFO msg="API /tg-auth-code: code written to file"
+time=2026-04-03T14:57:44.723Z level=INFO msg="MTProto: auth code read from file"
+time=2026-04-03T14:57:44.778Z level=INFO msg="MTProto: waiting for 2FA password" hint="POST /api/tg-2fa-password or write password to /tmp/tg_2fa_password"
+time=2026-04-03T14:57:44.778Z level=INFO msg="MTProto: 2FA password received from file"
+time=2026-04-03T14:57:45.659Z level=INFO msg="MTProto: authorization successful"
+time=2026-04-03T14:57:45.659Z level=INFO msg="MTProto client ready, starting sync worker"
+time=2026-04-03T14:57:45.659Z level=INFO msg="Sync worker started"
+time=2026-04-03T14:57:52.196Z level=WARN msg="API /profile auth failed" err="missing Authorization header" ip=172.21.0.5:33800
+time=2026-04-03T14:57:52.196Z level=WARN msg="API /tasks auth failed" err="missing Authorization header" ip=172.21.0.5:44656
+time=2026-04-03T14:57:52.196Z level=WARN msg="API /channels auth failed" err="missing Authorization header" ip=172.21.0.5:33804
+time=2026-04-03T14:58:09.418Z level=INFO msg="API /tasks" owner=325388237 count=0
+time=2026-04-03T14:58:09.671Z level=INFO msg="API /channels" owner=325388237 platform=tg count=1
+time=2026-04-03T15:01:15.411Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=2 maxAttempts=3 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:01:15.531Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=2 maxAttempts=3 err="tg download status: 404"
+time=2026-04-03T15:01:16.914Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=3 maxAttempts=3 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:01:17.036Z level=WARN msg="uploadTgPhotoToMax: retry" attempt=3 maxAttempts=3 err="tg download status: 404"
+time=2026-04-03T15:01:18.417Z level=ERROR msg="uploadTgPhotoToMax: all attempts failed" attempts=3 err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:01:18.417Z level=ERROR msg="TG→MAX photo upload failed" err="tg getFileURL: Bad Request: invalid file_id"
+time=2026-04-03T15:01:18.542Z level=ERROR msg="uploadTgPhotoToMax: all attempts failed" attempts=3 err="tg download status: 404"
+time=2026-04-03T15:01:18.542Z level=ERROR msg="TG→MAX photo upload failed" err="tg download status: 404"
+root@bxlneyhkvk:~#

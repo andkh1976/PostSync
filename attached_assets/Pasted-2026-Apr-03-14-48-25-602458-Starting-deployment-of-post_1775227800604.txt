@@ -1,0 +1,317 @@
+2026-Apr-03 14:48:25.602458
+Starting deployment of post-sync-video to localhost.
+2026-Apr-03 14:48:25.851276
+Preparing container with helper image: ghcr.io/coollabsio/coolify-helper:1.0.12
+2026-Apr-03 14:48:28.355706
+----------------------------------------
+2026-Apr-03 14:48:28.362915
+Importing andkh1976/PostSync:master (commit sha 62ab84d5dd5d4215bbdde46e510273e3bd9a3542) to /artifacts/to8gwwsgkcskoso0w4wko8og.
+2026-Apr-03 14:48:33.545148
+Added 38 ARG declarations to Dockerfile for service bridge (multi-stage build, added to 2 stages).
+2026-Apr-03 14:48:33.553131
+Pulling & building required images.
+2026-Apr-03 14:48:33.824603
+Adding build arguments to Docker Compose build command.
+2026-Apr-03 14:49:21.153590
+========================================
+2026-Apr-03 14:49:21.171056
+Deployment failed: Command execution failed (exit code 255): docker exec to8gwwsgkcskoso0w4wko8og bash -c 'COOLIFY_BRANCH=master COOLIFY_RESOURCE_UUID=d8ccw4sswoocwgo8o0g4ww8s  docker compose --env-file /artifacts/build-time.env --project-name d8ccw4sswoocwgo8o0g4ww8s --project-directory /artifacts/to8gwwsgkcskoso0w4wko8og -f /artifacts/to8gwwsgkcskoso0w4wko8og/docker-compose.yml build --pull --build-arg COOLIFY_URL --build-arg COOLIFY_FQDN --build-arg TELEGRAM_API_ID --build-arg POSTGRES_USER --build-arg POSTGRES_PASSWORD --build-arg TELEGRAM_API_HASH --build-arg TG_APP_HASH --build-arg TG_APP_ID --build-arg TG_TOKEN --build-arg MAX_TOKEN --build-arg POSTGRES_DB --build-arg MINI_APP_URL --build-arg WEBHOOK_URL --build-arg LOG_LEVEL --build-arg ALLOWED_USERS --build-arg GOTOOLCHAIN --build-arg TG_PHONE --build-arg SERVICE_URL_BRIDGE --build-arg SERVICE_FQDN_BRIDGE --build-arg COOLIFY_BUILD_SECRETS_HASH=7903913b8407530348aae10cc4e2b3ec08a57763c1d17f5045dfecb7fdbf26dd'
+2026-Apr-03 14:49:21.171056
+Error: #1 [internal] load local bake definitions
+2026-Apr-03 14:49:21.171056
+#1 reading from stdin 1.52kB done
+2026-Apr-03 14:49:21.171056
+#1 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#2 [internal] load build definition from Dockerfile
+2026-Apr-03 14:49:21.171056
+#2 transferring dockerfile: 1.62kB done
+2026-Apr-03 14:49:21.171056
+#2 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#3 [internal] load metadata for docker.io/library/golang:1.25rc2-alpine
+2026-Apr-03 14:49:21.171056
+#3 ...
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#4 [internal] load metadata for docker.io/library/alpine:3.21
+2026-Apr-03 14:49:21.171056
+#4 DONE 1.5s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#3 [internal] load metadata for docker.io/library/golang:1.25rc2-alpine
+2026-Apr-03 14:49:21.171056
+#3 DONE 1.5s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#5 [internal] load .dockerignore
+2026-Apr-03 14:49:21.171056
+#5 transferring context: 2B done
+2026-Apr-03 14:49:21.171056
+#5 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#6 [stage-1 1/6] FROM docker.io/library/alpine:3.21@sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709
+2026-Apr-03 14:49:21.171056
+#6 resolve docker.io/library/alpine:3.21@sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709 done
+2026-Apr-03 14:49:21.171056
+#6 sha256:c3f8e73fdb79deaebaa2037150150191b9dcbfba68b4a46d70103204c53f4709 9.22kB / 9.22kB done
+2026-Apr-03 14:49:21.171056
+#6 sha256:22e0ec13c0db6b3e1ba3280e831fc50ba7bffe58e81f31670a64b1afede247bc 1.02kB / 1.02kB done
+2026-Apr-03 14:49:21.171056
+#6 sha256:6aeafe801b80d22202e15849e99930f83810df4f0e535158480c590da19ecbd7 611B / 611B done
+2026-Apr-03 14:49:21.171056
+#6 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#7 [builder 1/8] FROM docker.io/library/golang:1.25rc2-alpine@sha256:0f6a8ece8776968301540756b7b8d4c13041c2e2a8b8aff2a32575f4a40379e7
+2026-Apr-03 14:49:21.171056
+#7 resolve docker.io/library/golang:1.25rc2-alpine@sha256:0f6a8ece8776968301540756b7b8d4c13041c2e2a8b8aff2a32575f4a40379e7 done
+2026-Apr-03 14:49:21.171056
+#7 ...
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#8 [internal] load build context
+2026-Apr-03 14:49:21.171056
+#8 transferring context: 2.53MB 0.1s done
+2026-Apr-03 14:49:21.171056
+#8 DONE 0.1s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#7 [builder 1/8] FROM docker.io/library/golang:1.25rc2-alpine@sha256:0f6a8ece8776968301540756b7b8d4c13041c2e2a8b8aff2a32575f4a40379e7
+2026-Apr-03 14:49:21.171056
+#7 sha256:0ca5a461ffe91f3c90ba08f800f11dcd4bf70cc2d55ed0c5c2743cd55563e347 0B / 282.44kB 0.2s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 0B / 60.04MB 0.2s
+2026-Apr-03 14:49:21.171056
+#7 sha256:6e257782a5d954ccdf1dc8d6c1960793f74a645399c9677b31c6a4cc5b7e44ea 0B / 126B 0.2s
+2026-Apr-03 14:49:21.171056
+#7 sha256:0f6a8ece8776968301540756b7b8d4c13041c2e2a8b8aff2a32575f4a40379e7 10.32kB / 10.32kB done
+2026-Apr-03 14:49:21.171056
+#7 sha256:79212fe6caebd784f446f23db7762a306654563b25c8fbd42ee2ef9f12480ed5 1.93kB / 1.93kB done
+2026-Apr-03 14:49:21.171056
+#7 sha256:7fb5912f24d82bc455f6d6c44deaafd4a406b2507a78a8d1d7dac4b61939f14c 2.08kB / 2.08kB done
+2026-Apr-03 14:49:21.171056
+#7 sha256:0ca5a461ffe91f3c90ba08f800f11dcd4bf70cc2d55ed0c5c2743cd55563e347 282.44kB / 282.44kB 0.4s done
+2026-Apr-03 14:49:21.171056
+#7 extracting sha256:0ca5a461ffe91f3c90ba08f800f11dcd4bf70cc2d55ed0c5c2743cd55563e347 0.1s done
+2026-Apr-03 14:49:21.171056
+#7 sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 0B / 32B 0.5s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 3.15MB / 60.04MB 0.7s
+2026-Apr-03 14:49:21.171056
+#7 sha256:6e257782a5d954ccdf1dc8d6c1960793f74a645399c9677b31c6a4cc5b7e44ea 126B / 126B 0.5s done
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 6.29MB / 60.04MB 0.9s
+2026-Apr-03 14:49:21.171056
+#7 sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 32B / 32B 0.7s done
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 11.53MB / 60.04MB 1.1s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 15.73MB / 60.04MB 1.3s
+2026-Apr-03 14:49:21.171056
+#7 ...
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#9 [stage-1 2/6] RUN apk add --no-cache ca-certificates
+2026-Apr-03 14:49:21.171056
+#9 0.306 fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/main/x86_64/APKINDEX.tar.gz
+2026-Apr-03 14:49:21.171056
+#9 0.508 fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/community/x86_64/APKINDEX.tar.gz
+2026-Apr-03 14:49:21.171056
+#9 1.066 (1/1) Installing ca-certificates (20250911-r0)
+2026-Apr-03 14:49:21.171056
+#9 1.142 Executing busybox-1.37.0-r14.trigger
+2026-Apr-03 14:49:21.171056
+#9 1.156 Executing ca-certificates-20250911-r0.trigger
+2026-Apr-03 14:49:21.171056
+#9 1.216 OK: 7 MiB in 16 packages
+2026-Apr-03 14:49:21.171056
+#9 DONE 1.4s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#7 [builder 1/8] FROM docker.io/library/golang:1.25rc2-alpine@sha256:0f6a8ece8776968301540756b7b8d4c13041c2e2a8b8aff2a32575f4a40379e7
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 22.02MB / 60.04MB 1.6s
+2026-Apr-03 14:49:21.171056
+#7 ...
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#10 [stage-1 3/6] RUN adduser -D -h /app bridge
+2026-Apr-03 14:49:21.171056
+#10 DONE 0.2s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#11 [stage-1 4/6] WORKDIR /app
+2026-Apr-03 14:49:21.171056
+#11 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#7 [builder 1/8] FROM docker.io/library/golang:1.25rc2-alpine@sha256:0f6a8ece8776968301540756b7b8d4c13041c2e2a8b8aff2a32575f4a40379e7
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 28.31MB / 60.04MB 1.9s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 31.46MB / 60.04MB 2.0s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 35.65MB / 60.04MB 2.2s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 39.85MB / 60.04MB 2.4s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 44.04MB / 60.04MB 2.6s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 51.38MB / 60.04MB 2.9s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 57.67MB / 60.04MB 3.2s
+2026-Apr-03 14:49:21.171056
+#7 sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 60.04MB / 60.04MB 3.3s done
+2026-Apr-03 14:49:21.171056
+#7 extracting sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97
+2026-Apr-03 14:49:21.171056
+#7 extracting sha256:9bdf15a548b4be40443428f4de057c1b7efe2ca8736a86b588c14395015dee97 5.1s done
+2026-Apr-03 14:49:21.171056
+#7 extracting sha256:6e257782a5d954ccdf1dc8d6c1960793f74a645399c9677b31c6a4cc5b7e44ea
+2026-Apr-03 14:49:21.171056
+#7 extracting sha256:6e257782a5d954ccdf1dc8d6c1960793f74a645399c9677b31c6a4cc5b7e44ea done
+2026-Apr-03 14:49:21.171056
+#7 extracting sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 done
+2026-Apr-03 14:49:21.171056
+#7 DONE 8.8s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#12 [builder 2/8] RUN apk add --no-cache gcc musl-dev
+2026-Apr-03 14:49:21.171056
+#12 0.222 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/main/x86_64/APKINDEX.tar.gz
+2026-Apr-03 14:49:21.171056
+#12 0.459 fetch https://dl-cdn.alpinelinux.org/alpine/v3.22/community/x86_64/APKINDEX.tar.gz
+2026-Apr-03 14:49:21.171056
+#12 1.015 (1/13) Installing libgcc (14.2.0-r6)
+2026-Apr-03 14:49:21.171056
+#12 1.044 (2/13) Installing jansson (2.14.1-r0)
+2026-Apr-03 14:49:21.171056
+#12 1.069 (3/13) Installing libstdc++ (14.2.0-r6)
+2026-Apr-03 14:49:21.171056
+#12 1.133 (4/13) Installing zstd-libs (1.5.7-r0)
+2026-Apr-03 14:49:21.171056
+#12 1.172 (5/13) Installing binutils (2.44-r3)
+2026-Apr-03 14:49:21.171056
+#12 1.366 (6/13) Installing libgomp (14.2.0-r6)
+2026-Apr-03 14:49:21.171056
+#12 1.398 (7/13) Installing libatomic (14.2.0-r6)
+2026-Apr-03 14:49:21.171056
+#12 1.420 (8/13) Installing gmp (6.3.0-r3)
+2026-Apr-03 14:49:21.171056
+#12 1.452 (9/13) Installing isl26 (0.26-r1)
+2026-Apr-03 14:49:21.171056
+#12 1.514 (10/13) Installing mpfr4 (4.2.1_p1-r0)
+2026-Apr-03 14:49:21.171056
+#12 1.548 (11/13) Installing mpc1 (1.3.1-r1)
+2026-Apr-03 14:49:21.171056
+#12 1.572 (12/13) Installing gcc (14.2.0-r6)
+2026-Apr-03 14:49:21.171056
+#12 3.988 (13/13) Installing musl-dev (1.2.5-r10)
+2026-Apr-03 14:49:21.171056
+#12 4.172 Executing busybox-1.37.0-r18.trigger
+2026-Apr-03 14:49:21.171056
+#12 4.187 OK: 172 MiB in 30 packages
+2026-Apr-03 14:49:21.171056
+#12 DONE 4.7s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#13 [builder 3/8] WORKDIR /src
+2026-Apr-03 14:49:21.171056
+#13 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#14 [builder 4/8] COPY go.mod go.sum ./
+2026-Apr-03 14:49:21.171056
+#14 DONE 0.0s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#15 [builder 5/8] RUN GOTOOLCHAIN=go1.25.8 go mod download
+2026-Apr-03 14:49:21.171056
+#15 0.191 go: downloading go1.25.8 (linux/amd64)
+2026-Apr-03 14:49:21.171056
+#15 DONE 18.7s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#16 [builder 6/8] COPY . .
+2026-Apr-03 14:49:21.171056
+#16 DONE 0.1s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#17 [builder 7/8] RUN GOTOOLCHAIN=go1.25.8 go mod tidy
+2026-Apr-03 14:49:21.171056
+#17 0.634 go: downloading github.com/dhui/dktest v0.4.6
+2026-Apr-03 14:49:21.171056
+#17 0.642 go: downloading github.com/stretchr/testify v1.11.1
+2026-Apr-03 14:49:21.171056
+#17 0.753 go: downloading github.com/golang/mock v1.6.0
+2026-Apr-03 14:49:21.171056
+#17 0.816 go: downloading github.com/docker/docker v28.3.3+incompatible
+2026-Apr-03 14:49:21.171056
+#17 0.981 go: downloading github.com/google/go-cmp v0.7.0
+2026-Apr-03 14:49:21.171056
+#17 0.987 go: downloading go.uber.org/goleak v1.3.0
+2026-Apr-03 14:49:21.171056
+#17 2.001 go: downloading github.com/docker/go-connections v0.5.0
+2026-Apr-03 14:49:21.171056
+#17 2.001 go: downloading nhooyr.io/websocket v1.8.17
+2026-Apr-03 14:49:21.171056
+#17 2.001 go: downloading gopkg.in/yaml.v3 v3.0.1
+2026-Apr-03 14:49:21.171056
+#17 2.011 go: downloading github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+2026-Apr-03 14:49:21.171056
+#17 2.038 go: downloading github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+2026-Apr-03 14:49:21.171056
+#17 2.076 go: downloading github.com/moby/docker-image-spec v1.3.1
+2026-Apr-03 14:49:21.171056
+#17 2.078 go: downloading github.com/opencontainers/go-digest v1.0.0
+2026-Apr-03 14:49:21.171056
+#17 2.080 go: downloading github.com/opencontainers/image-spec v1.1.0
+2026-Apr-03 14:49:21.171056
+#17 2.102 go: downloading github.com/docker/go-units v0.5.0
+2026-Apr-03 14:49:21.171056
+#17 2.112 go: downloading github.com/moby/term v0.5.0
+2026-Apr-03 14:49:21.171056
+#17 2.132 go: downloading github.com/morikuni/aec v1.0.0
+2026-Apr-03 14:49:21.171056
+#17 2.134 go: downloading github.com/containerd/errdefs v1.0.0
+2026-Apr-03 14:49:21.171056
+#17 2.140 go: downloading github.com/containerd/errdefs/pkg v0.3.0
+2026-Apr-03 14:49:21.171056
+#17 2.158 go: downloading github.com/distribution/reference v0.6.0
+2026-Apr-03 14:49:21.171056
+#17 2.165 go: downloading github.com/pkg/errors v0.9.1
+2026-Apr-03 14:49:21.171056
+#17 2.170 go: downloading go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
+2026-Apr-03 14:49:21.171056
+#17 2.190 go: downloading gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
+2026-Apr-03 14:49:21.171056
+#17 2.312 go: downloading github.com/Microsoft/go-winio v0.6.2
+2026-Apr-03 14:49:21.171056
+#17 2.313 go: downloading github.com/felixge/httpsnoop v1.0.4
+2026-Apr-03 14:49:21.171056
+#17 2.316 go: downloading github.com/kr/pretty v0.2.1
+2026-Apr-03 14:49:21.171056
+#17 2.352 go: downloading github.com/go-logr/logr v1.4.3
+2026-Apr-03 14:49:21.171056
+#17 2.357 go: downloading github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
+2026-Apr-03 14:49:21.171056
+#17 2.388 go: downloading github.com/gogo/protobuf v1.3.2
+2026-Apr-03 14:49:21.171056
+#17 2.399 go: downloading github.com/kr/text v0.2.0
+2026-Apr-03 14:49:21.171056
+#17 2.412 go: downloading github.com/go-logr/stdr v1.2.2
+2026-Apr-03 14:49:21.171056
+#17 2.527 go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+2026-Apr-03 14:49:21.171056
+#17 DONE 3.2s
+2026-Apr-03 14:49:21.171056
+2026-Apr-03 14:49:21.171056
+#18 [builder 8/8] RUN GOTOOLCHAIN=go1.25.8 CGO_ENABLED=1 go build -o /max-telegram-bridge-bot .
+2026-Apr-03 14:49:21.313727
+========================================
+2026-Apr-03 14:49:21.917226
+Gracefully shutting down build container: to8gwwsgkcskoso0w4wko8og

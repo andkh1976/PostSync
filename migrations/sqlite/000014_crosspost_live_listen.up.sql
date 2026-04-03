@@ -1,0 +1,1 @@
+ALTER TABLE crossposts ADD COLUMN live_listen INTEGER NOT NULL DEFAULT 1;

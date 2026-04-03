@@ -1,0 +1,21 @@
+# Binaries
+bridge
+bridge_linux
+max-telegram-bridge-bot
+*.exe
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Environment
+.env
+deploy.sh
+backup.sh
+backup-cleanup.sh
+bearlogin-bridge
+bridge.db.bak
+
+# Session data
+tg_session.json

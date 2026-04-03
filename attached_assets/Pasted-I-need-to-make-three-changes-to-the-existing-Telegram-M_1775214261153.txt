@@ -1,0 +1,109 @@
+I need to make three changes to the existing Telegram → MAX message forwarding application. These are isolated, targeted changes — do not touch anything else.
+
+Change 1 — Preserve Telegram text formatting when forwarding
+Telegram messages use entities (bold, italic, code, links, etc.) attached to the message object. Currently the app likely sends plain text only.
+
+Find the code that constructs the text payload sent to MAX API and update it to:
+
+Read message.entities (or message.caption_entities for media messages) from the Telegram message object
+
+Convert Telegram entities to the format supported by MAX API (check the existing MAX API integration in the codebase to determine whether it uses Markdown, HTML, or its own entity format)
+
+If MAX API accepts Markdown: convert Telegram entities to Markdown syntax (bold → **text**, italic → _text_, code → `text`, pre → ```text```, links → [text](url))
+
+If MAX API accepts HTML: convert Telegram entities to HTML tags (<b>, <i>, <code>, <pre>, <a href="">)
+
+If MAX API has its own entities format: map Telegram entity types to MAX entity types and pass them in the request body alongside the text
+
+Do not strip or ignore any entity type — preserve all formatting that MAX API supports; silently skip only unsupported types
+
+Change 2 — Forward posts in chronological order (oldest first) during sync
+Find the code that handles historical sync (bulk forwarding of past messages from a channel).
+
+Update it so that messages are always processed and forwarded in ascending chronological order — from the oldest message to the newest.
+
+Specifically:
+
+If messages are fetched in reverse order (newest first, which is Telegram's default), reverse the array before processing
+
+If messages are fetched in batches using pagination (e.g. getHistory with offset_id), collect all batches first, then sort the full list by message.date ascending before forwarding
+
+Do NOT change the order for the live listener (new incoming messages) — that already processes messages as they arrive
+
+Change 3 — Add source attribution label to every forwarded post
+Every message forwarded to MAX — both during historical sync and during live listening — must include a attribution line appended to the text.
+
+Format:
+
+text
+[TG] DD.MM.YYYY
+Where:
+
+TG is a fixed prefix indicating the source is Telegram
+
+DD.MM.YYYY is the date of the original Telegram post (from message.date, which is a Unix timestamp — convert to local date in DD.MM.YYYY format)
+
+Placement rules:
+
+Append the label on a new line at the end of the message text, separated by one blank line:
+
+text
+Original message text here...
+
+[TG] 03.04.2026
+For media messages (video, photo, document) with a caption: append to the caption text
+
+For media messages without a caption: set the caption to just the attribution label
+
+For text-only messages with no text (edge case): skip the label
+
+Implementation:
+
+Create a single helper function formatAttribution(date: number): string (or equivalent in Python) that takes the Unix timestamp and returns the formatted string
+
+Call this function from both the sync path and the live listener path — do not duplicate the logic
+
+Important constraints — read before making any changes
+Do NOT change any logic unrelated to text construction, message ordering, or attribution labeling
+
+Do NOT refactor, rename, or reorganize any existing files or functions unless directly required
+
+Do NOT upgrade or change any existing dependencies — only add new ones if strictly necessary
+
+Do NOT modify Docker, environment variables, or infrastructure configuration
+
+Do NOT change file transfer / streaming logic for videos or other media
+
+After making changes, list every file modified and explain what was changed and why
+
+Verification steps — complete ALL before pushing to GitHub
+Step 1 — Build check
+Run the build command (npm run build, tsc --noEmit, or python -m py_compile on changed files). No compilation errors.
+
+Step 2 — Existing tests
+Run the existing test suite. All previously passing tests must still pass.
+
+Step 3 — Static analysis / lint
+Run the linter if configured. No new errors introduced.
+
+Step 4 — Logic checks (manual review)
+
+Verify the following by reading the modified code:
+
+ A message with bold text in Telegram arrives with entities containing a bold type — confirm the forwarded text to MAX includes the bold formatting marker (Markdown ** or HTML <b>)
+
+ The formatAttribution helper function exists and is called from both the sync path and the live listener path (no duplicated logic)
+
+ The attribution label format matches exactly: [TG] DD.MM.YYYY with a blank line before it
+
+ In the sync path, messages are sorted by date ascending before the forwarding loop begins
+
+ The live listener path is unchanged in terms of ordering
+
+Step 5 — Diff review
+List every file that was modified. For each file, briefly state what changed. Confirm no files outside the expected scope (text formatting, ordering, attribution) were touched.
+
+Only after all steps pass — commit and push to GitHub with the message:
+
+text
+feat: preserve formatting, chronological sync order, and source attribution
