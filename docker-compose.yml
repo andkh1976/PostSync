@@ -5,6 +5,8 @@ services:
     env_file: .env
     labels:
       - "traefik.http.services.bridge.loadbalancer.server.port=8443"
+    volumes:
+      - tg-api-data:/var/lib/telegram-bot-api:ro
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-bridge}:${POSTGRES_PASSWORD:-bridge}@postgres:5432/${POSTGRES_DB:-bridge}?sslmode=disable
       TG_API_URL: http://telegram-bot-api:8081
