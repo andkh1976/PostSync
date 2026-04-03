@@ -85,6 +85,13 @@ type Bridge struct {
 
         // cancelledTasks — задачи, которые пользователь попросил отменить во время выполнения
         cancelledTasks sync.Map // key: int64 taskID, value: struct{}
+
+        // tgSeenIDs — кольцевой буфер для дедупликации Telegram UpdateID
+        // (защита от повторной доставки webhook локальным Telegram Bot API сервером)
+        tgSeenMu   sync.Mutex
+        tgSeenIDs  [256]int // хранит последние 256 UpdateID
+        tgSeenHead int
+        tgSeenLen  int
 }
 
 // NewBridge создаёт экземпляр Bridge.
@@ -125,6 +132,29 @@ func NewBridge(cfg Config, repo Repository, tgBot *tgbotapi.BotAPI, maxApi *maxb
                 breakers:  make(map[int64]*chatBreaker),
                 mgBuffers: make(map[string]*mediaGroupBuffer),
         }
+}
+
+// tgUpdateSeen проверяет, был ли данный UpdateID уже обработан.
+// Если нет — запоминает его и возвращает false ("не видели").
+// Если да — возвращает true ("уже видели, дубль").
+func (b *Bridge) tgUpdateSeen(updateID int) bool {
+        b.tgSeenMu.Lock()
+        defer b.tgSeenMu.Unlock()
+
+        // Проверяем, есть ли updateID в буфере
+        for i := 0; i < b.tgSeenLen; i++ {
+                if b.tgSeenIDs[i] == updateID {
+                        return true // дубль
+                }
+        }
+
+        // Запоминаем
+        b.tgSeenIDs[b.tgSeenHead] = updateID
+        b.tgSeenHead = (b.tgSeenHead + 1) % len(b.tgSeenIDs)
+        if b.tgSeenLen < len(b.tgSeenIDs) {
+                b.tgSeenLen++
+        }
+        return false
 }
 
 // cbBlocked проверяет, заблокирован ли чат.

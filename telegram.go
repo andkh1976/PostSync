@@ -65,6 +65,12 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                 return
                         }
 
+                        // Дедупликация: пропускаем повторно доставленные webhook'и
+                        if b.tgUpdateSeen(update.UpdateID) {
+                                slog.Debug("TG update duplicate skipped", "updateID", update.UpdateID)
+                                continue
+                        }
+
                         // Обработка channel posts (crosspost forwarding only)
                         if update.EditedChannelPost != nil {
                                 b.handleTgEditedChannelPost(ctx, update.EditedChannelPost)
