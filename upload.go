@@ -177,13 +177,11 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
         }
         slog.Info("MAX upload endpoint", "url", endpoint.Url, "token", endpoint.Token)
 
-        // Если токен уже в ответе шага 1 — CDN загрузка не нужна
-        if endpoint.Token != "" {
+        // Если токен уже в ответе шага 1, но URL НЕТ — значит загружать больше некуда
+        if endpoint.Token != "" && endpoint.Url == "" {
                 slog.Info("MAX upload ok (endpoint token, no CDN needed)")
                 return &maxschemes.UploadedInfo{Token: endpoint.Token}, nil
         }
-
-        if endpoint.Url == "" {
                 return nil, fmt.Errorf("upload endpoint returned empty URL and no token")
         }
 
@@ -277,6 +275,13 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
                 slog.Info("MAX upload ok", "fileId", cdnResult.FileID)
                 return &maxschemes.UploadedInfo{Token: cdnResult.Token, FileID: cdnResult.FileID}, nil
         }
+        
+        // Если CDN не вернул JSON токен, но вернул HTTP 200, и у нас есть токен из Шага 1:
+        if endpoint.Token != "" {
+                slog.Info("MAX upload ok (used endpoint token after successful CDN upload)")
+                return &maxschemes.UploadedInfo{Token: endpoint.Token}, nil
+        }
+
         return nil, fmt.Errorf("no token in CDN response (file=%s status=%d): %s", fileName, cdnResp.StatusCode, string(cdnBody))
 }
 
