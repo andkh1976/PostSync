@@ -34,8 +34,6 @@ ARG LOG_LEVEL
 ARG ALLOWED_USERS
 
 RUN apk add --no-cache ca-certificates
-RUN adduser -D -h /app bridge
-USER bridge
 WORKDIR /app
 
 COPY --from=builder /max-telegram-bridge-bot /usr/local/bin/max-telegram-bridge-bot
