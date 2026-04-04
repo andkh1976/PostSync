@@ -169,17 +169,17 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
         }
 
         endpointBody, _ := io.ReadAll(resp.Body)
-        slog.Debug("MAX upload endpoint response", "status", resp.StatusCode, "body", string(endpointBody))
+        slog.Info("MAX upload endpoint response", "status", resp.StatusCode, "body", string(endpointBody))
 
         var endpoint maxschemes.UploadEndpoint
         if err := json.Unmarshal(endpointBody, &endpoint); err != nil {
                 return nil, fmt.Errorf("decode upload endpoint: %w", err)
         }
-        slog.Debug("MAX upload endpoint", "url", endpoint.Url, "token", endpoint.Token)
+        slog.Info("MAX upload endpoint", "url", endpoint.Url, "token", endpoint.Token)
 
         // Если токен уже в ответе шага 1 — CDN загрузка не нужна
         if endpoint.Token != "" {
-                slog.Debug("MAX upload ok (endpoint token, no CDN needed)")
+                slog.Info("MAX upload ok (endpoint token, no CDN needed)")
                 return &maxschemes.UploadedInfo{Token: endpoint.Token}, nil
         }
 
@@ -226,7 +226,7 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
         defer cdnResp.Body.Close()
 
         cdnBody, _ := io.ReadAll(cdnResp.Body)
-        slog.Debug("MAX CDN response", "status", cdnResp.StatusCode, "body", string(cdnBody))
+        slog.Info("MAX CDN response", "status", cdnResp.StatusCode, "body", string(cdnBody))
 
         if cdnResp.StatusCode != 200 {
                 slog.Error("MAX CDN upload failed", "status", cdnResp.StatusCode, "body", string(cdnBody), "file", fileName, "size", formatFileSize(int(contentLength)))
@@ -249,7 +249,7 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
                 Token  string `json:"token"`
         }
         if err := json.Unmarshal(cdnBody, &cdnResult); err == nil && cdnResult.Token != "" {
-                slog.Debug("MAX upload ok", "fileId", cdnResult.FileID)
+                slog.Info("MAX upload ok", "fileId", cdnResult.FileID)
                 return &maxschemes.UploadedInfo{Token: cdnResult.Token, FileID: cdnResult.FileID}, nil
         }
         return nil, fmt.Errorf("no token in CDN response (file=%s status=%d): %s", fileName, cdnResp.StatusCode, string(cdnBody))
@@ -359,7 +359,7 @@ func (b *Bridge) uploadTgMediaToMax(ctx context.Context, fileID string, uploadTy
                         lastErr = err
                         continue
                 }
-                slog.Debug("TG file download started", "size", formatFileSize(int(contentLength)), "file", fileName)
+                slog.Info("TG file download started", "size", formatFileSize(int(contentLength)), "file", fileName)
 
                 // Файлы > 2 ГБ доступны только отправителями с Telegram Premium
                 const tgPremiumThreshold = 2 * 1024 * 1024 * 1024
