@@ -182,9 +182,9 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
                 slog.Info("MAX upload ok (endpoint token, no CDN needed)")
                 return &maxschemes.UploadedInfo{Token: endpoint.Token}, nil
         }
+        if endpoint.Url == "" {
                 return nil, fmt.Errorf("upload endpoint returned empty URL and no token")
         }
-
         // Используем 15-минутный таймаут для загрузки больших файлов
         uploadCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
         defer cancel()
