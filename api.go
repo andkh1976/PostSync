@@ -381,17 +381,8 @@ func (b *Bridge) handleAPIHistoryClear(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
-        startDate, err := time.Parse("2006-01-02", req.StartDate)
-        if err != nil {
-                writeError(w, http.StatusBadRequest, "invalid start_date format, use YYYY-MM-DD")
-                return
-        }
-        endDate, err := time.Parse("2006-01-02", req.EndDate)
-        if err != nil {
-                writeError(w, http.StatusBadRequest, "invalid end_date format, use YYYY-MM-DD")
-                return
-        }
-        endDate = endDate.Add(24*time.Hour - time.Second)
+        // Parsing and validating the dates isn't necessary anymore since
+        // ClearMessagesMapping affects the entire channel mappings.
 
         // Проверяем владение связкой
         _, _, ok := b.repo.GetCrosspostMaxChat(req.TgChatID, owner.UserID)
