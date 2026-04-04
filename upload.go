@@ -419,8 +419,9 @@ func (b *Bridge) sendMaxDirectFormatted(ctx context.Context, chatID int64, text 
 
         url := fmt.Sprintf("https://platform-api.max.ru/messages?chat_id=%d&v=1.2.5", chatID)
 
-        // Retry при attachment.not.ready (файл ещё обрабатывается)
-        for attempt := 0; attempt < 10; attempt++ {
+        // Retry при attachment.not.ready (быстрые попытки)
+        // Если база долго конвертирует, очередь (queue) обеспечит длинные попытки
+        for attempt := 0; attempt < 3; attempt++ {
                 if attempt > 0 {
                         delay := time.Duration(1+attempt) * time.Second
                         select {
@@ -468,7 +469,7 @@ func (b *Bridge) sendMaxDirectFormatted(ctx context.Context, chatID int64, text 
 
                 return "", fmt.Errorf("MAX API %d: %s", resp.StatusCode, string(respBody))
         }
-        return "", fmt.Errorf("MAX attachment not ready after 10 retries")
+        return "", fmt.Errorf("MAX attachment not ready after 3 retries")
 }
 
 // formatFileSize formats file size in human-readable form.
