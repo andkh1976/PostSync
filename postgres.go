@@ -126,21 +126,15 @@ func (r *pgRepo) IsCrosspostOwnerByTgChat(tgChatID, userID int64) bool {
         return userID == maxOwner || userID == tgOwner
 }
 
-// DeleteMessagesByPeriod удаляет записи из messages для tgChatID за период [startDate, endDate].
-// created_at хранится как Unix-timestamp (int64).
-func (r *pgRepo) DeleteMessagesByPeriod(tgChatID int64, startDate, endDate time.Time) error {
-        res, err := r.db.Exec(
-                "DELETE FROM messages WHERE tg_chat_id = $1 AND created_at BETWEEN $2 AND $3",
-                tgChatID, startDate.Unix(), endDate.Unix(),
-        )
+// ClearMessagesMapping удаляет все записи из messages для tgChatID.
+func (r *pgRepo) ClearMessagesMapping(tgChatID int64) error {
+        res, err := r.db.Exec("DELETE FROM messages WHERE tg_chat_id = $1", tgChatID)
         if err != nil {
                 return err
         }
         n, _ := res.RowsAffected()
-        slog.Info("DeleteMessagesByPeriod",
+        slog.Info("ClearMessagesMapping",
                 "tg_chat_id", tgChatID,
-                "from", startDate.Format(time.RFC3339),
-                "to", endDate.Format(time.RFC3339),
                 "deleted", n,
         )
         return nil

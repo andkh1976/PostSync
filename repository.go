@@ -61,9 +61,8 @@ type Repository interface {
         // по tgChatID. Возвращает true если связка старая (без owner_id).
         IsCrosspostOwnerByTgChat(tgChatID, userID int64) bool
 
-        // DeleteMessagesByPeriod удаляет записи из таблицы messages для указанного
-        // tgChatID за период [startDate, endDate]. Возвращает ошибку при сбое.
-        DeleteMessagesByPeriod(tgChatID int64, startDate, endDate time.Time) error
+        // ClearMessagesMapping удаляет все записи из таблицы messages для указанного tgChatID.
+        ClearMessagesMapping(tgChatID int64) error
 
         // SetCrosspostLiveListen включает или выключает "живое прослушивание" новых постов.
         SetCrosspostLiveListen(maxChatID int64, liveListen bool) bool

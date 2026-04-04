@@ -400,7 +400,7 @@ func (b *Bridge) handleAPIHistoryClear(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
-        if err := b.repo.DeleteMessagesByPeriod(req.TgChatID, startDate, endDate); err != nil {
+        if err := b.repo.ClearMessagesMapping(req.TgChatID); err != nil {
                 slog.Error("API /history/clear failed", "err", err, "owner", owner.UserID, "tgChat", req.TgChatID)
                 writeError(w, http.StatusInternalServerError, "failed to clear history")
                 return
