@@ -191,56 +191,64 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
 
         var cdnReq *http.Request
         var errReq error
+        var contentType string
 
         // 2. Загрузка на CDN.
-        // Для файлов < 50 МБ буферизируем в память для точного вычисления Content-Length,
-        // чтобы избежать Chunked Transfer-Encoding (который ломает MAX CDN).
-        if contentLength > 0 && contentLength <= 50*1024*1024 {
+        // Полностью отказываемся от Chunked-кодирования (оно ломает MAX CDN с ошибкой 500 для больших файлов).
+        // Если размер известен, высчитываем точный Content-Length через преамбулы multipart без буферизации файла.
+        if contentLength > 0 {
+                var bHeader bytes.Buffer
+                mw := multipart.NewWriter(&bHeader)
+                
+                _, err := mw.CreateFormFile("data", fileName)
+                if err != nil {
+                        return nil, fmt.Errorf("create form preamble: %w", err)
+                }
+                preamble := append([]byte(nil), bHeader.Bytes()...)
+                
+                bHeader.Reset()
+                mw.Close()
+                epilogue := append([]byte(nil), bHeader.Bytes()...)
+                
+                totalSize := int64(len(preamble)) + contentLength + int64(len(epilogue))
+                
+                var src io.Reader = reader
+                // Для файлов > 100 МБ включаем логирование прогресса
+                if contentLength > 100*1024*1024 {
+                        src = &progressReader{r: reader, total: contentLength, name: fileName}
+                }
+                
+                bodyReader := io.MultiReader(bytes.NewReader(preamble), src, bytes.NewReader(epilogue))
+                
+                cdnReq, errReq = http.NewRequestWithContext(uploadCtx, http.MethodPost, endpoint.Url, bodyReader)
+                if errReq == nil {
+                        // ЯВНО УКАЗЫВАЕМ Content-Length. Это отключает Chunked потоки в Go-клиенте.
+                        cdnReq.ContentLength = totalSize
+                        contentType = mw.FormDataContentType()
+                }
+        } else {
+                // Фолбэк для неизвестного размера (читаем всё в память, как для маленьких файлов раннее)
                 var b bytes.Buffer
                 mw := multipart.NewWriter(&b)
                 part, err := mw.CreateFormFile("data", fileName)
                 if err != nil {
-                        return nil, fmt.Errorf("create form file: %w", err)
+                        return nil, fmt.Errorf("create form file fallback: %w", err)
                 }
                 if _, err := io.Copy(part, reader); err != nil {
-                        return nil, fmt.Errorf("copy to form: %w", err)
+                        return nil, fmt.Errorf("copy to form fallback: %w", err)
                 }
                 mw.Close()
 
                 cdnReq, errReq = http.NewRequestWithContext(uploadCtx, http.MethodPost, endpoint.Url, &b)
-                if errReq != nil {
-                        return nil, fmt.Errorf("create CDN request: %w", errReq)
+                if errReq == nil {
+                        contentType = mw.FormDataContentType()
                 }
-                cdnReq.Header.Set("Content-Type", mw.FormDataContentType())
-        } else {
-                // Потоковая загрузка файла на CDN (multipart) через io.Pipe без буферизации в памяти (Фолбэк).
-                pr, pw := io.Pipe()
-                mw := multipart.NewWriter(pw)
-
-                go func() {
-                        part, err := mw.CreateFormFile("data", fileName)
-                        if err != nil {
-                                pw.CloseWithError(fmt.Errorf("create form file: %w", err))
-                                return
-                        }
-                        var src io.Reader = reader
-                        // Для файлов > 100 МБ включаем логирование прогресса
-                        if contentLength > 100*1024*1024 {
-                                src = &progressReader{r: reader, total: contentLength, name: fileName}
-                        }
-                        if _, err := io.Copy(part, src); err != nil {
-                                pw.CloseWithError(fmt.Errorf("copy to form: %w", err))
-                                return
-                        }
-                        pw.CloseWithError(mw.Close())
-                }()
-
-                cdnReq, errReq = http.NewRequestWithContext(uploadCtx, http.MethodPost, endpoint.Url, pr)
-                if errReq != nil {
-                        return nil, fmt.Errorf("create CDN request: %w", errReq)
-                }
-                cdnReq.Header.Set("Content-Type", mw.FormDataContentType())
         }
+
+        if errReq != nil {
+                return nil, fmt.Errorf("create CDN request: %w", errReq)
+        }
+        cdnReq.Header.Set("Content-Type", contentType)
 
         cdnResp, err := b.httpClient.Do(cdnReq)
         if err != nil {
