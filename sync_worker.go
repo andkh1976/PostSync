@@ -456,7 +456,7 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, msg *tg.Message, tg
 
 	b.cbSuccess(maxChatID)
 	b.repo.SaveMsg(tgChatID, msg.ID, maxChatID, mid)
-	slog.Debug("Sync worker: message forwarded", "tgMsgID", msg.ID, "maxMsgID", result.Body.Mid)
+	slog.Debug("Sync worker: message forwarded", "tgMsgID", msg.ID, "maxMsgID", mid)
 	return nil
 }
 
