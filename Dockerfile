@@ -11,14 +11,14 @@ ARG WEBHOOK_URL
 ARG LOG_LEVEL
 ARG ALLOWED_USERS
 
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN go mod tidy
-RUN CGO_ENABLED=1 go build -o /max-telegram-bridge-bot .
+RUN CGO_ENABLED=0 go build -o /max-telegram-bridge-bot .
 
 FROM alpine:3.21
 

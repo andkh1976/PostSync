@@ -146,25 +146,21 @@ func main() {
         }
 
         tgToken := mustEnv("TG_TOKEN")
-        dbPath := envOr("DB_PATH", "bridge.db")
 
         var repo Repository
         var err error
-        if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
-                repo, err = NewPostgresRepo(dsn)
-                if err != nil {
-                        slog.Error("PostgreSQL error", "err", err)
-                        os.Exit(1)
-                }
-                slog.Info("DB: PostgreSQL")
-        } else {
-                repo, err = NewSQLiteRepo(dbPath)
-                if err != nil {
-                        slog.Error("SQLite error", "err", err)
-                        os.Exit(1)
-                }
-                slog.Info("DB: SQLite", "path", dbPath)
+        dsn := os.Getenv("DATABASE_URL")
+        if dsn == "" {
+                slog.Error("DATABASE_URL is required (SQLite has been removed for better performance)")
+                os.Exit(1)
         }
+        
+        repo, err = NewPostgresRepo(dsn)
+        if err != nil {
+                slog.Error("PostgreSQL error", "err", err)
+                os.Exit(1)
+        }
+        slog.Info("DB: PostgreSQL")
         defer repo.Close()
 
         var tgBot *tgbotapi.BotAPI

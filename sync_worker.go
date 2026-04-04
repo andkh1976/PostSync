@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	maxbot "github.com/max-messenger/max-bot-api-client-go"
-
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"

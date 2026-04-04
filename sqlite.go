@@ -6,7 +6,7 @@ import (
         "sync"
         "time"
 
-        _ "github.com/mattn/go-sqlite3"
+        _ "modernc.org/sqlite"
 )
 
 type sqliteRepo struct {
@@ -15,12 +15,12 @@ type sqliteRepo struct {
 }
 
 func NewSQLiteRepo(dbPath string) (Repository, error) {
-        db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL")
+        db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)")
         if err != nil {
                 return nil, err
         }
 
-        if err := runMigrations(db, "sqlite3"); err != nil {
+        if err := runMigrations(db, "sqlite"); err != nil {
                 return nil, err
         }
 
