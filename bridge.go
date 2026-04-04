@@ -6,7 +6,6 @@ import (
         "encoding/hex"
         "log/slog"
         "net/http"
-        "strings"
         "sync"
         "sync/atomic"
         "time"
