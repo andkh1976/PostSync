@@ -394,7 +394,8 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, msg *tg.Message, tg
 		return fmt.Errorf("circuit breaker active for maxChatID %d", maxChatID)
 	}
 
-	// Конвертируем entities в Markdown перед заменами
+	// Узнаём, есть ли реальное форматирование в оригинальном сообщении
+	hasFormatting := mtprotoEntitiesToMarkdown(msg.Message, msg.Entities) != msg.Message
 	text := mtprotoEntitiesToMarkdown(msg.Message, msg.Entities)
 
 	// Применяем замены кросспостинга если настроены
@@ -440,15 +441,12 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, msg *tg.Message, tg
 		return nil
 	}
 
-	m := maxbot.NewMessage().SetChat(maxChatID).SetText(text)
-
-	switch mediaAttType {
-	case "video":
-		// mediaToken заполняется только если мы реально загрузили файл выше
-		_ = mediaToken
+	var format string
+	if hasFormatting {
+		format = "markdown"
 	}
 
-	result, err := b.maxApi.Messages.SendWithResult(ctx, m)
+	mid, err := b.sendMaxDirectFormatted(ctx, maxChatID, text, mediaAttType, mediaToken, "", format)
 	if err != nil {
 		if b.cbFail(maxChatID) {
 			slog.Warn("Sync worker: circuit breaker triggered", "maxChatID", maxChatID)
@@ -457,7 +455,7 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, msg *tg.Message, tg
 	}
 
 	b.cbSuccess(maxChatID)
-	b.repo.SaveMsg(tgChatID, msg.ID, maxChatID, result.Body.Mid)
+	b.repo.SaveMsg(tgChatID, msg.ID, maxChatID, mid)
 	slog.Debug("Sync worker: message forwarded", "tgMsgID", msg.ID, "maxMsgID", result.Body.Mid)
 	return nil
 }
