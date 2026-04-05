@@ -412,6 +412,76 @@
       align-items: flex-start;
       margin-bottom: 4px;
     }
+
+    /* ── Date Picker Popup ─────────────────────────────────────── */
+    .dp-popup {
+      position: absolute;
+      z-index: 1000;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+      width: 260px;
+      display: none;
+    }
+    .dp-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .dp-header button {
+      background: transparent;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      color: var(--text);
+      font-size: 14px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .dp-header button:hover {
+      background: var(--bg);
+    }
+    .dp-month-year {
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .dp-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      text-align: center;
+    }
+    .dp-day-name {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .dp-day {
+      font-size: 13px;
+      padding: 6px 0;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .dp-day:hover:not(.dp-disabled):not(.dp-empty) {
+      background: var(--bg);
+    }
+    .dp-day.dp-selected {
+      background: var(--primary) !important;
+      color: white;
+    }
+    .dp-day.dp-disabled {
+      color: var(--muted);
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .dp-day.dp-empty {
+      cursor: default;
+    }
   </style>
 </head>
 <body>
@@ -504,11 +574,11 @@
       <div class="date-row-pair">
         <div>
           <label for="sync-start" style="font-size:11px;color:var(--muted)">Начало</label>
-          <input type="text" id="sync-start" class="date-field" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10" />
+          <input type="text" id="sync-start" class="date-field" placeholder="ДД.ММ.ГГГГ" readonly style="cursor:pointer;caret-color:transparent;" />
         </div>
         <div>
           <label for="sync-end" style="font-size:11px;color:var(--muted)">Конец</label>
-          <input type="text" id="sync-end" class="date-field" placeholder="ДД.ММ.ГГГГ" inputmode="numeric" maxlength="10" />
+          <input type="text" id="sync-end" class="date-field" placeholder="ДД.ММ.ГГГГ" readonly style="cursor:pointer;caret-color:transparent;" />
         </div>
       </div>
     </div>
@@ -971,19 +1041,144 @@
     }
   }
 
-  // ─── Автоформат дат (ДД.ММ.ГГГГ) ─────────────────────────────────────────
-  function initDateInput(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('input', () => {
-      let v = el.value.replace(/\D/g, '').slice(0, 8);
-      if (v.length > 4) v = v.slice(0,2) + '.' + v.slice(2,4) + '.' + v.slice(4);
-      else if (v.length > 2) v = v.slice(0,2) + '.' + v.slice(2);
-      el.value = v;
-    });
+  // ─── Date Picker (Popup) ─────────────────────────────────────────────────
+  const dpPopup = document.createElement('div');
+  dpPopup.className = 'dp-popup';
+  document.body.appendChild(dpPopup);
+
+  let dpTargetInput = null;
+  let dpCurrentViewDate = new Date();
+
+  function parseDateStr(str) {
+    if(!str) return null;
+    const p = str.split('.');
+    if(p.length !== 3) return null;
+    return new Date(p[2], p[1]-1, p[0]);
   }
-  initDateInput('sync-start');
-  initDateInput('sync-end');
+
+  function formatDateStr(d) {
+    if(!d) return "";
+    const DD = String(d.getDate()).padStart(2, '0');
+    const MM = String(d.getMonth() + 1).padStart(2, '0');
+    const YYYY = d.getFullYear();
+    return `${DD}.${MM}.${YYYY}`;
+  }
+
+  function openDP(inputId) {
+    dpTargetInput = document.getElementById(inputId);
+    const val = parseDateStr(dpTargetInput.value);
+    if (val) {
+      dpCurrentViewDate = new Date(val.getFullYear(), val.getMonth(), 1);
+    } else {
+      dpCurrentViewDate = new Date();
+      dpCurrentViewDate.setDate(1);
+    }
+    
+    renderDP();
+    dpPopup.style.display = 'block';
+    
+    const rect = dpTargetInput.getBoundingClientRect();
+    let top = rect.bottom + window.scrollY + 4;
+    let left = rect.left + window.scrollX;
+    
+    if (top + 280 > window.scrollY + window.innerHeight && rect.top > 280) {
+      top = rect.top + window.scrollY - 280 - 4;
+    }
+    if (left + 260 > window.scrollX + window.innerWidth) {
+      left = Math.max(0, rect.right + window.scrollX - 260);
+    }
+    
+    dpPopup.style.top = top + 'px';
+    dpPopup.style.left = left + 'px';
+  }
+
+  window.changeDPMonth = function(dir, e) {
+    if(e) e.stopPropagation();
+    dpCurrentViewDate.setMonth(dpCurrentViewDate.getMonth() + dir);
+    renderDP();
+  }
+
+  window.selectDPDate = function(y, m, d, e) {
+    if(e) e.stopPropagation();
+    if(e.currentTarget.classList.contains('dp-disabled')) return;
+    dpTargetInput.value = formatDateStr(new Date(y, m, d));
+    dpPopup.style.display = 'none';
+  }
+
+  function renderDP() {
+    const y = dpCurrentViewDate.getFullYear();
+    const m = dpCurrentViewDate.getMonth();
+    const months = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+    
+    let html = `
+      <div class="dp-header">
+        <button type="button" onclick="changeDPMonth(-1, event)">&lt;</button>
+        <div class="dp-month-year">${months[m]} ${y}</div>
+        <button type="button" onclick="changeDPMonth(1, event)">&gt;</button>
+      </div>
+      <div class="dp-grid">
+    `;
+    
+    const days = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+    days.forEach(d => { html += `<div class="dp-day-name">${d}</div>` });
+
+    let firstDay = new Date(y, m, 1).getDay();
+    let emptyDays = firstDay === 0 ? 6 : firstDay - 1;
+    for(let i=0; i<emptyDays; i++){
+      html += `<div class="dp-day dp-empty"></div>`;
+    }
+    
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const startVal = parseDateStr(document.getElementById('sync-start').value);
+    const endVal = parseDateStr(document.getElementById('sync-end').value);
+
+    for(let d=1; d<=daysInMonth; d++){
+      const currD = new Date(y, m, d);
+      let cls = 'dp-day';
+      let disabled = false;
+
+      if (dpTargetInput.id === 'sync-start' && endVal && currD > endVal) {
+         disabled = true;
+      }
+      if (dpTargetInput.id === 'sync-end' && startVal && currD < startVal) {
+         disabled = true;
+      }
+
+      if (disabled) cls += ' dp-disabled';
+
+      let isSelected = false;
+      if (dpTargetInput.id === 'sync-start' && startVal && currD.getTime() === startVal.getTime()) isSelected = true;
+      if (dpTargetInput.id === 'sync-end' && endVal && currD.getTime() === endVal.getTime()) isSelected = true;
+      if (isSelected) cls += ' dp-selected';
+
+      html += `<div class="${cls}" onclick="selectDPDate(${y}, ${m}, ${d}, event)">${d}</div>`;
+    }
+
+    html += `</div>`;
+    dpPopup.innerHTML = html;
+  }
+
+  document.getElementById('sync-start').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(dpPopup.style.display === 'block' && dpTargetInput?.id === 'sync-start') {
+      dpPopup.style.display = 'none'; return;
+    }
+    openDP('sync-start');
+  });
+
+  document.getElementById('sync-end').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if(dpPopup.style.display === 'block' && dpTargetInput?.id === 'sync-end') {
+      dpPopup.style.display = 'none'; return;
+    }
+    openDP('sync-end');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (dpPopup.style.display === 'block' && !dpPopup.contains(e.target)) {
+      dpPopup.style.display = 'none';
+    }
+  });
 
   // ─── Init ─────────────────────────────────────────────────────────────────
   loadProfile();
