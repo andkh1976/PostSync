@@ -2,128 +2,126 @@ package main
 
 import (
 	"testing"
-
 	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
 )
 
-func TestIsTgGroup(t *testing.T) {
-	tests := []struct {
-		chatType string
-		want     bool
+func TestTgGroupDetection(t *testing.T) {
+	cases := map[string]bool{
+		"group":      true,
+		"supergroup": true,
+		"private":    false,
+		"channel":    false,
+		"":           false,
+		"invalid":    false, // added edge case
+	}
+	for val, expected := range cases {
+		t.Run("check_tggroup_"+val, func(t *testing.T) {
+			if res := isTgGroup(val); res != expected {
+				t.Fatalf("isTgGroup(%v) should be %v", val, expected)
+			}
+		})
+	}
+}
+
+func TestTgAdminCheckValidation(t *testing.T) {
+	var evaluations = []struct {
+		input  string
+		result bool
 	}{
-		{"group", true},
-		{"supergroup", true},
-		{"private", false},
-		{"channel", false},
+		{input: "administrator", result: true},
+		{input: "creator", result: true},
+		{input: "member", result: false},
+		{input: "kicked", result: false},
+		{input: "left", result: false},
+		{input: "restricted", result: false},
+		{input: "owner", result: false},
+		{input: "", result: false},
+	}
+	for idx := range evaluations {
+		tc := evaluations[idx]
+		t.Run("adminstat_"+tc.input, func(t *testing.T) {
+			ans := isTgAdmin(tc.input)
+			if ans != tc.result {
+				t.Errorf("Error parsing tg admin: intput %q gave %v", tc.input, ans)
+			}
+		})
+	}
+}
+
+func TestMaxGroupTypeLogic(t *testing.T) {
+	scenarios := []struct {
+		mType maxschemes.ChatType
+		req   bool
+	}{
+		{maxschemes.CHAT, true},
+		{maxschemes.CHANNEL, true},
+		{maxschemes.DIALOG, false},
+		{maxschemes.ChatType("unknown"), false},
 		{"", false},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.chatType, func(t *testing.T) {
-			if got := isTgGroup(tt.chatType); got != tt.want {
-				t.Errorf("isTgGroup(%q) = %v, want %v", tt.chatType, got, tt.want)
+	for _, s := range scenarios {
+		t.Run("maxgroup_"+string(s.mType), func(t *testing.T) {
+			if isMaxGroup(s.mType) != s.req {
+				t.Errorf("Mismatch for max group type %q", s.mType)
 			}
 		})
 	}
 }
 
-func TestIsTgAdmin(t *testing.T) {
-	tests := []struct {
-		status string
-		want   bool
-	}{
-		{"creator", true},
-		{"administrator", true},
-		{"member", false},
-		{"restricted", false},
-		{"left", false},
-		{"kicked", false},
-		{"", false},
+func TestMaxUserAdminSearch(t *testing.T) {
+	testParticipants := []maxschemes.ChatMember{
+		{UserId: 10, Name: "A", IsOwner: true, IsAdmin: true},
+		{UserId: 20, Name: "B", IsAdmin: true},
+		{UserId: 30, Name: "C", IsBot: true, IsAdmin: true},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.status, func(t *testing.T) {
-			if got := isTgAdmin(tt.status); got != tt.want {
-				t.Errorf("isTgAdmin(%q) = %v, want %v", tt.status, got, tt.want)
+	checks := []struct {
+		id  int64
+		exp bool
+	}{
+		{10, true},
+		{20, true},
+		{30, true},
+		{40, false},
+		{0, false},
+		{-1, false},
+	}
+
+	for _, c := range checks {
+		t.Run("uidcheck", func(t *testing.T) {
+			if isMaxUserAdmin(testParticipants, c.id) != c.exp {
+				t.Fatalf("Validation failed for id %d", c.id)
 			}
 		})
 	}
 }
 
-func TestIsMaxGroup(t *testing.T) {
-	tests := []struct {
-		name     string
-		chatType maxschemes.ChatType
-		want     bool
-	}{
-		{"chat", maxschemes.CHAT, true},
-		{"channel", maxschemes.CHANNEL, true},
-		{"dialog", maxschemes.DIALOG, false},
-		{"empty", "", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isMaxGroup(tt.chatType); got != tt.want {
-				t.Errorf("isMaxGroup(%q) = %v, want %v", tt.chatType, got, tt.want)
-			}
-		})
-	}
+func TestMaxUserAdminSearch_NilSlices(t *testing.T) {
+    // Ensuring specific slice handling behaves identically
+    resOne := isMaxUserAdmin(nil, 50)
+    if resOne {
+        t.Fatal("nil array traversal should fail gracefully")
+    }
+    
+    emptySlice := make([]maxschemes.ChatMember, 0)
+    if isMaxUserAdmin(emptySlice, 50) {
+        t.Fatal("empty array traversal should fail gracefully")
+    }
 }
 
-func TestIsMaxUserAdmin(t *testing.T) {
-	admins := []maxschemes.ChatMember{
-		{UserId: 100, Name: "Owner", IsOwner: true, IsAdmin: true},
-		{UserId: 200, Name: "Admin", IsAdmin: true},
-		{UserId: 300, Name: "Bot", IsBot: true, IsAdmin: true},
+func TestTgChannelCategorization(t *testing.T) {
+	checkVals := map[string]bool{
+		"channel":    true,
+		"group":      false,
+		"supergroup": false,
+		"private":    false,
+		"":           false,
+		"bot":        false, // edge check
 	}
-
-	tests := []struct {
-		name   string
-		userID int64
-		want   bool
-	}{
-		{"owner is admin", 100, true},
-		{"admin is admin", 200, true},
-		{"bot admin", 300, true},
-		{"non-admin user", 999, false},
-		{"zero id", 0, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isMaxUserAdmin(admins, tt.userID); got != tt.want {
-				t.Errorf("isMaxUserAdmin(admins, %d) = %v, want %v", tt.userID, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestIsMaxUserAdmin_EmptyList(t *testing.T) {
-	if isMaxUserAdmin(nil, 100) {
-		t.Error("isMaxUserAdmin(nil, 100) = true, want false")
-	}
-	if isMaxUserAdmin([]maxschemes.ChatMember{}, 100) {
-		t.Error("isMaxUserAdmin([], 100) = true, want false")
-	}
-}
-
-func TestIsTgChannel(t *testing.T) {
-	tests := []struct {
-		chatType string
-		want     bool
-	}{
-		{"channel", true},
-		{"group", false},
-		{"supergroup", false},
-		{"private", false},
-		{"", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.chatType, func(t *testing.T) {
-			if got := isTgChannel(tt.chatType); got != tt.want {
-				t.Errorf("isTgChannel(%q) = %v, want %v", tt.chatType, got, tt.want)
+	for k, v := range checkVals {
+		t.Run("chan_eval_"+k, func(t *testing.T) {
+			if isTgChannel(k) != v {
+				t.Errorf("Expected %v for channel val %s", v, k)
 			}
 		})
 	}

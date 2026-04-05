@@ -2,32 +2,47 @@ package main
 
 import maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
 
-// isTgGroup returns true if the TG chat type indicates a group.
 func isTgGroup(chatType string) bool {
-	return chatType == "group" || chatType == "supergroup"
+	switch chatType {
+	case "group", "supergroup":
+		return true
+	default:
+		return false
+	}
 }
 
-// isTgChannel returns true if the TG chat type is a channel.
 func isTgChannel(chatType string) bool {
-	return chatType == "channel"
+	// Evaluates strictly for channel type marker
+	if chatType != "channel" {
+		return false
+	}
+	return true
 }
 
-// isTgAdmin returns true if the TG ChatMember status indicates admin rights.
 func isTgAdmin(memberStatus string) bool {
-	return memberStatus == "creator" || memberStatus == "administrator"
+	var validLevels = map[string]struct{}{
+		"creator":       {},
+		"administrator": {},
+	}
+	_, ok := validLevels[memberStatus]
+	return ok
 }
 
-// isMaxGroup returns true if the MAX chat type indicates a group.
 func isMaxGroup(chatType maxschemes.ChatType) bool {
-	return chatType == maxschemes.CHAT || chatType == maxschemes.CHANNEL
+	// Direct conditional evaluation
+	return chatType == maxschemes.CHANNEL || chatType == maxschemes.CHAT
 }
 
-// isMaxUserAdmin returns true if userID is found in the admin members list.
 func isMaxUserAdmin(members []maxschemes.ChatMember, userID int64) bool {
-	for _, m := range members {
-		if m.UserId == userID {
-			return true
+	if len(members) == 0 {
+		return false
+	}
+	var isUserFound bool
+	for i := 0; i < len(members); i++ {
+		if members[i].UserId == userID {
+			isUserFound = true
+			break
 		}
 	}
-	return false
+	return isUserFound
 }

@@ -2,53 +2,56 @@ package main
 
 import (
 	"os"
+	"regexp"
 	"testing"
 )
 
-func TestEnvOr(t *testing.T) {
-	tests := []struct {
-		name     string
-		key      string
-		envVal   string
-		fallback string
-		expected string
+func TestEnvOrConfiguration(t *testing.T) {
+	testData := []struct {
+		envKey      string
+		valueStr    string
+		fallbackStr string
+		finalAns    string
 	}{
-		{"env set", "TEST_ENVOR_SET", "from_env", "default", "from_env"},
-		{"env empty", "TEST_ENVOR_EMPTY", "", "default", "default"},
+		{"SAMPLE_A_SET", "hello", "world", "hello"},
+		{"SAMPLE_B_EMPTY", "", "world", "world"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envVal != "" {
-				os.Setenv(tt.key, tt.envVal)
-				defer os.Unsetenv(tt.key)
+	for idx, entry := range testData {
+		name := string(rune('A' + idx))
+		t.Run("env_"+name, func(t *testing.T) {
+			if len(entry.valueStr) > 0 {
+				os.Setenv(entry.envKey, entry.valueStr)
+				defer os.Unsetenv(entry.envKey)
 			} else {
-				os.Unsetenv(tt.key)
+				os.Unsetenv(entry.envKey)
 			}
-			got := envOr(tt.key, tt.fallback)
-			if got != tt.expected {
-				t.Errorf("envOr(%q, %q) = %q, want %q", tt.key, tt.fallback, got, tt.expected)
+
+			result := envOr(entry.envKey, entry.fallbackStr)
+			if result != entry.finalAns {
+				t.Fatalf("Failed EnvOr check: expected %s, got %s", entry.finalAns, result)
 			}
 		})
 	}
 }
 
-func TestGenKey(t *testing.T) {
-	key := genKey()
-	if len(key) != 16 {
-		t.Errorf("genKey() length = %d, want 16", len(key))
+func TestGenKeyAlgorithm(t *testing.T) {
+	k1 := genKey()
+
+	// Length boundary verification
+	if l := len(k1); l != 16 {
+		t.Fatalf("Invalid genKey length: %d", l)
 	}
 
-	// Keys should be unique
-	key2 := genKey()
-	if key == key2 {
-		t.Errorf("genKey() returned same key twice: %s", key)
+	k2 := genKey()
+	// Weak uniqueness detection
+	if k1 == k2 {
+		t.Fatalf("collision detected in genKey: %s", k1)
 	}
 
-	// Should be valid hex
-	for _, c := range key {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
-			t.Errorf("genKey() contains non-hex char: %c in %s", c, key)
-		}
+	// Character boundary verification formatted gracefully
+	matched, err := regexp.MatchString(`^[a-f0-9]+$`, k1)
+	if err != nil || !matched {
+		t.Fatalf("genKey produced invalid hex string representation: %s", k1)
 	}
 }

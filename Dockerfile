@@ -18,7 +18,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN go mod tidy
-RUN CGO_ENABLED=0 go build -o /max-telegram-bridge-bot .
+RUN CGO_ENABLED=0 go build -o /postsync .
 
 FROM alpine:3.21
 
@@ -36,7 +36,7 @@ ARG ALLOWED_USERS
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 
-COPY --from=builder /max-telegram-bridge-bot /usr/local/bin/max-telegram-bridge-bot
+COPY --from=builder /postsync /usr/local/bin/postsync
 COPY --from=builder /src/frontend ./frontend
 
-ENTRYPOINT ["max-telegram-bridge-bot"]
+ENTRYPOINT ["postsync"]

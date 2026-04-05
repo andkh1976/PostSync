@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -11,8 +12,11 @@ import (
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
+
+	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
 )
 
 // runWithMTProto инициализирует MTProto клиент и запускает sync worker.
@@ -345,7 +349,7 @@ func (b *Bridge) processSyncTask(ctx context.Context, api *tg.Client, task SyncT
 			}
 
 			// Пересылаем в MAX
-			if err := b.forwardMTProtoMsgToMax(ctx, msg, task.TgChatID, task.MaxChatID); err != nil {
+			if err := b.forwardMTProtoMsgToMax(ctx, api, msg, task.TgChatID, task.MaxChatID); err != nil {
 				slog.Error("Sync worker: forward failed", "tgMsgID", msg.ID, "err", err)
 				// Продолжаем с остальными сообщениями, не прерываем задачу
 			} else {
@@ -387,7 +391,7 @@ func (b *Bridge) processSyncTask(ctx context.Context, api *tg.Client, task SyncT
 
 // forwardMTProtoMsgToMax пересылает сообщение из MTProto истории в MAX-чат.
 // Адаптация forwardTgToMax для работы с данными от MTProto клиента.
-func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, msg *tg.Message, tgChatID int64, maxChatID int64) error {
+func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, api *tg.Client, msg *tg.Message, tgChatID int64, maxChatID int64) error {
 	if b.cbBlocked(maxChatID) {
 		return fmt.Errorf("circuit breaker active for maxChatID %d", maxChatID)
 	}
@@ -418,19 +422,82 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, msg *tg.Message, tg
 	var mediaAttType string // "video", "file", "audio"
 
 	if msg.Media != nil {
+		var loc tg.InputFileLocationClass
+		var size int64
+		var fileName string
+
 		switch media := msg.Media.(type) {
 		case *tg.MessageMediaPhoto:
-			// Фото: скачиваем через Bot API (не через MTProto) для простоты
-			// Оставляем mediaToken пустым — отправим только текст
-			_ = media
-			slog.Debug("Sync worker: photo media — sending text only", "tgMsgID", msg.ID)
+			if p, ok := media.Photo.AsNotEmpty(); ok {
+				// Выбираем самый большой размер
+				var maxSize *tg.PhotoSize
+				for _, ps := range p.Sizes {
+					if sizeClass, ok := ps.(*tg.PhotoSize); ok {
+						if maxSize == nil || sizeClass.Size > maxSize.Size {
+							maxSize = sizeClass
+						}
+					}
+				}
+				if maxSize != nil {
+					mediaAttType = "image"
+					fileName = "photo.jpg"
+					size = int64(maxSize.Size)
+					loc = &tg.InputPhotoFileLocation{
+						ID:            p.ID,
+						AccessHash:    p.AccessHash,
+						FileReference: p.FileReference,
+						ThumbSize:     maxSize.Type,
+					}
+				}
+			}
 
 		case *tg.MessageMediaDocument:
-			_ = media
-			slog.Debug("Sync worker: document media — sending text only", "tgMsgID", msg.ID)
+			if doc, ok := media.Document.AsNotEmpty(); ok {
+				size = doc.Size
+				mediaAttType = "file"
+				if strings.HasPrefix(doc.MimeType, "video/") {
+					mediaAttType = "video"
+				} else if strings.HasPrefix(doc.MimeType, "image/") {
+					mediaAttType = "image"
+				}
+
+				name := "file"
+				for _, attr := range doc.Attributes {
+					if filenameAttr, ok := attr.(*tg.DocumentAttributeFilename); ok {
+						name = filenameAttr.FileName
+					}
+				}
+				fileName = name
+				loc = doc.AsInputDocumentFileLocation()
+			}
 
 		default:
 			slog.Debug("Sync worker: unknown media type, skipping media", "type", fmt.Sprintf("%T", msg.Media))
+		}
+
+		if loc != nil && size > 0 {
+			slog.Info("MTProto: starting media download", "type", mediaAttType, "filename", fileName, "size", size)
+
+			pr, pw := io.Pipe()
+
+			// Горутина для скачивания чанками через MTProto downloader
+			go func() {
+				dl := downloader.NewDownloader()
+				_, err := dl.Download(api, loc).Stream(ctx, pw)
+				pw.CloseWithError(err)
+			}()
+
+			// Передаем pipeReader и точный размер прямо в MAX SDK
+			uploadType := maxschemes.UploadType(mediaAttType)
+			uploaded, err := b.customUploadToMax(ctx, uploadType, pr, fileName, size)
+			if err != nil {
+				slog.Error("Sync worker: MAX media upload failed", "filename", fileName, "err", err)
+				// Fallback: отправляем без медиа
+				mediaAttType = ""
+			} else if uploaded != nil {
+				mediaToken = uploaded.Token
+				slog.Info("Sync worker: media uploaded successfully", "token", mediaToken)
+			}
 		}
 	}
 
