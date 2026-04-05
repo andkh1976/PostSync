@@ -81,6 +81,19 @@ func main() {
                 slog.Info("User whitelist enabled", "count", len(cfg.AllowedUsers))
         }
 
+        // Parse ADMIN_CHAT_ID
+        if v := os.Getenv("ADMIN_CHAT_ID"); v != "" {
+                id, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+                if err != nil {
+                        slog.Error("Invalid ADMIN_CHAT_ID value", "value", v, "err", err)
+                        os.Exit(1)
+                }
+                cfg.AdminChatID = id
+        } else if len(cfg.AllowedUsers) > 0 {
+                cfg.AdminChatID = cfg.AllowedUsers[0]
+                slog.Info("ADMIN_CHAT_ID not set, using first allowed user as fallback", "chatID", cfg.AdminChatID)
+        }
+
         // Parse file size limits
         if v := os.Getenv("TG_MAX_FILE_SIZE_MB"); v != "" {
                 if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n >= 0 {

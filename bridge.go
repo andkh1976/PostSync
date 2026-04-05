@@ -24,6 +24,7 @@ type Config struct {
         WebhookPort  string  // порт для webhook сервера
         TgAPIURL         string  // custom TG Bot API URL (если пусто — api.telegram.org)
         AllowedUsers     []int64 // whitelist TG user IDs (empty = allow all)
+        AdminChatID      int64   // TG chat ID куда слать системные уведомления и ошибки
         TgMaxFileSizeMB  int     // max file size TG->MAX in MB (0 = unlimited)
         MaxMaxFileSizeMB int     // max file size MAX->TG in MB (0 = unlimited)
         // MaxAllowedExts — whitelist расширений для TG→MAX (nil = не проверять локально).
@@ -212,6 +213,19 @@ func (c *Config) maxMaxFileBytes() int64 {
                 return 0
         }
         return int64(c.MaxMaxFileSizeMB) * 1024 * 1024
+}
+
+// notifyAdmin отправляет сообщение об ошибке администратору бота.
+// Если AdminChatID не задан (0), ошибка только логируется.
+func (b *Bridge) notifyAdmin(ctx context.Context, text string) {
+        if b.cfg.AdminChatID == 0 {
+                slog.Warn("Admin notification", "text", text)
+                return
+        }
+        m := tgbotapi.NewMessage(b.cfg.AdminChatID, text)
+        if _, err := b.tgBot.Send(m); err != nil {
+                slog.Error("Failed to notify admin", "err", err, "text", text)
+        }
 }
 
 // isUserAllowed проверяет, есть ли tgUserID в белом списке.

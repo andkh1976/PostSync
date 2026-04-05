@@ -464,6 +464,12 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
         }
 
         uid := tgUserID(msg)
+        title := b.tgChatTitle(msg.Chat.ID)
+
+        // функция-хелпер для отправки ошибок админу
+        sendError := func(text string) {
+                b.notifyAdmin(ctx, fmt.Sprintf("⚠️ Ошибка пересылки из чата/канала %s (ID: %d): %s", title, msg.Chat.ID, text))
+        }
 
         // checkSize returns true and sends warning if file exceeds TG_MAX_FILE_SIZE_MB limit.
         // fileSize=0 means the size is unknown (old TG messages may omit it) — we skip the check.
@@ -472,13 +478,13 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 if limit <= 0 || fileSize <= 0 || fileSize <= limit*1024*1024 {
                         return false
                 }
-                warn := fmt.Sprintf("⚠️ Файл слишком большой для пересылки (%s). Максимальный размер файла %d МБ.",
+                warn := fmt.Sprintf("Файл слишком большой для пересылки (%s). Максимальный размер файла %d МБ.",
                         formatFileSize(fileSize), limit)
                 if fileName != "" {
-                        warn = fmt.Sprintf("⚠️ Файл \"%s\" слишком большой для пересылки (%s). Максимальный размер файла %d МБ.",
+                        warn = fmt.Sprintf("Файл \"%s\" слишком большой для пересылки (%s). Максимальный размер файла %d МБ.",
                                 fileName, formatFileSize(fileSize), limit)
                 }
-                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, warn))
+                sendError(warn)
                 return true
         }
 
@@ -498,7 +504,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                                 m.AddPhoto(uploaded)
                         } else {
                                 slog.Error("TG→MAX photo upload failed", "err", err)
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить фото в MAX."))
+                                sendError("Не удалось отправить фото в MAX.")
                                 return
                         }
                 } else if fileURL, err := b.tgFileURL(photo.FileID); err == nil {
@@ -506,7 +512,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                                 m.AddPhoto(uploaded)
                         } else {
                                 slog.Error("TG→MAX photo upload failed", "err", err)
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить фото в MAX."))
+                                sendError("Не удалось отправить фото в MAX.")
                                 return
                         }
                 }
@@ -520,8 +526,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 if err != nil {
                         slog.Error("TG→MAX send failed", "err", err, "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
                         if b.cbFail(maxChatID) {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("Не удалось переслать в MAX. Пересылка приостановлена на %d мин. Проверьте, что бот добавлен в MAX-чат и является админом.", int(cbCooldown.Minutes()))))
+                                sendError(fmt.Sprintf("Не удалось переслать в MAX. Пересылка приостановлена на %d мин. Проверьте, что бот добавлен в MAX-чат и является админом.", int(cbCooldown.Minutes())))
                         }
                 } else {
                         b.cbSuccess(maxChatID)
@@ -543,7 +548,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                         mediaAttType = "video"
                 } else {
                         slog.Error("TG→MAX gif upload failed", "err", err)
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Не удалось отправить GIF \"%s\" в MAX.", name)))
+                        sendError(fmt.Sprintf("Не удалось отправить GIF \"%s\" в MAX.", name))
                         return
                 }
         } else if msg.Sticker != nil {
@@ -557,7 +562,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                                 mediaAttType = "video"
                         } else {
                                 slog.Error("TG→MAX sticker upload failed", "err", err)
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить стикер в MAX."))
+                                sendError("Не удалось отправить стикер в MAX.")
                                 return
                         }
                 } else {
@@ -575,7 +580,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                                         result, err := b.maxApi.Messages.SendWithResult(ctx, m)
                                         if err != nil {
                                                 slog.Error("TG→MAX sticker send failed", "err", err)
-                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить стикер в MAX."))
+                                                sendError("Не удалось отправить стикер в MAX.")
                                         } else {
                                                 slog.Info("TG→MAX sent", "mid", result.Body.Mid)
                                                 b.repo.SaveMsg(msg.Chat.ID, msg.MessageID, maxChatID, result.Body.Mid)
@@ -583,7 +588,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                                         return
                                 } else {
                                         slog.Error("TG→MAX sticker photo upload failed", "err", err)
-                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить стикер в MAX."))
+                                        sendError("Не удалось отправить стикер в MAX.")
                                         return
                                 }
                         }
@@ -601,7 +606,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                         mediaAttType = "video"
                 } else {
                         slog.Error("TG→MAX video upload failed", "err", err)
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Не удалось отправить видео \"%s\" в MAX.", name)))
+                        sendError(fmt.Sprintf("Не удалось отправить видео \"%s\" в MAX.", name))
                         return
                 }
         } else if msg.VideoNote != nil {
@@ -613,7 +618,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                         mediaAttType = "video"
                 } else {
                         slog.Error("TG→MAX video note upload failed", "err", err)
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить кружок в MAX."))
+                        sendError("Не удалось отправить кружок в MAX.")
                         return
                 }
         } else if msg.Document != nil {
@@ -638,8 +643,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 if b.cfg.MaxAllowedExts != nil && attType == "file" {
                         ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
                         if _, ok := b.cfg.MaxAllowedExts[ext]; !ok {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (расширение .%s не разрешено).", name, ext)))
+                                sendError(fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (расширение .%s не разрешено).", name, ext))
                                 return
                         }
                 }
@@ -649,13 +653,11 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 } else {
                         var e *ErrForbiddenExtension
                         if errors.As(err, &e) {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (запрещённое расширение).", name)))
+                                sendError(fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (запрещённое расширение).", name))
                                 return
                         }
                         slog.Error("TG→MAX file upload failed", "err", err)
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                fmt.Sprintf("Не удалось отправить файл \"%s\" в MAX.", name)))
+                        sendError(fmt.Sprintf("Не удалось отправить файл \"%s\" в MAX.", name))
                         return
                 }
         } else if msg.Voice != nil {
@@ -668,12 +670,11 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 } else {
                         var e *ErrForbiddenExtension
                         if errors.As(err, &e) {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (запрещённое расширение).", e.Name)))
+                                sendError(fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (запрещённое расширение).", e.Name))
                                 return
                         }
                         slog.Error("TG→MAX voice upload failed", "err", err)
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Не удалось отправить голосовое сообщение в MAX."))
+                        sendError("Не удалось отправить голосовое сообщение в MAX.")
                         return
                 }
         } else if msg.Audio != nil {
@@ -688,8 +689,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 if b.cfg.MaxAllowedExts != nil {
                         ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
                         if _, ok := b.cfg.MaxAllowedExts[ext]; !ok {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (расширение .%s не разрешено).", name, ext)))
+                                sendError(fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (расширение .%s не разрешено).", name, ext))
                                 return
                         }
                 }
@@ -699,12 +699,11 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                 } else {
                         var e *ErrForbiddenExtension
                         if errors.As(err, &e) {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                        fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (запрещённое расширение).", name)))
+                                sendError(fmt.Sprintf("Файл \"%s\" не поддерживается в MAX (запрещённое расширение).", name))
                                 return
                         }
                         slog.Error("TG→MAX audio upload failed", "err", err)
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Не удалось отправить аудио \"%s\" в MAX.", name)))
+                        sendError(fmt.Sprintf("Не удалось отправить аудио \"%s\" в MAX.", name))
                         return
                 }
         }
@@ -785,8 +784,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
                         b.enqueueTg2Max(msg.Chat.ID, msg.MessageID, maxChatID, mdCaption, mediaAttType, mediaToken, replyTo, format)
                 }
                 if b.cbFail(maxChatID) {
-                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID,
-                                "MAX API недоступен. Сообщения в очереди, будут доставлены автоматически."))
+                        sendError("MAX API недоступен. Сообщения в очереди, будут доставлены автоматически.")
                 }
         } else {
                 b.cbSuccess(maxChatID)

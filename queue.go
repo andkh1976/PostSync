@@ -92,8 +92,8 @@ func (b *Bridge) processQueue(ctx context.Context) {
 			slog.Warn("queue item expired", "id", item.ID, "dir", item.Direction, "attempts", item.Attempts, "age", age)
 			b.repo.DeleteFromQueue(item.ID)
 			if item.Direction == "tg2max" {
-				b.tgBot.Send(tgbotapi.NewMessage(item.SrcChatID,
-					fmt.Sprintf("Сообщение не доставлено в MAX после %d попыток.", item.Attempts)))
+				title := b.tgChatTitle(item.SrcChatID)
+				b.notifyAdmin(ctx, fmt.Sprintf("⚠️ Ошибка пересылки из канала %s (ID: %d): Сообщение не доставлено в MAX после %d попыток.", title, item.SrcChatID, item.Attempts))
 			}
 			continue
 		}

@@ -183,8 +183,8 @@ func (b *Bridge) flushMediaGroup(ctx context.Context, groupID string) {
 		if err != nil {
 			slog.Error("TG→MAX media group send failed", "err", err)
 			if b.cbFail(maxChatID) {
-				b.tgBot.Send(tgbotapi.NewMessage(items[0].msg.Chat.ID,
-					fmt.Sprintf("Не удалось переслать альбом в MAX. Пересылка приостановлена на %d мин. Проверьте, что бот добавлен в MAX-чат и является админом.", int(cbCooldown.Minutes()))))
+				title := b.tgChatTitle(items[0].msg.Chat.ID)
+				b.notifyAdmin(ctx, fmt.Sprintf("⚠️ Ошибка пересылки из канала %s (ID: %d): Не удалось переслать альбом в MAX. Пересылка приостановлена на %d мин. Проверьте, что бот добавлен в MAX-чат и является админом.", title, items[0].msg.Chat.ID, int(cbCooldown.Minutes())))
 			}
 			// Fallback — по одному
 			for _, it := range items {
