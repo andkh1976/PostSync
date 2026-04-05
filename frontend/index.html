@@ -260,6 +260,9 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    @keyframes fadeIn { from {opacity:0; transform:translateY(8px)} to {opacity:1; transform:translateY(0)} }
+    .fade-in { animation: fadeIn 0.35s ease forwards; }
+
     /* ── Sprint 4: Progress Bar ───────────────────────────────────────── */
     .task-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -961,12 +964,16 @@
   async function loadConfig() {
     try {
       const cfg = await fetch(API_BASE + '/api/config').then(r => r.json());
-      if (!cfg.mtproto_enabled) {
+      if (cfg.mtproto_authorized === true) {
+        document.getElementById('sync-unavailable').style.display = 'none';
+        document.getElementById('tg-auth-block').style.display = 'none';
+        document.getElementById('sync-form').style.display = '';
+        document.getElementById('sync-form').classList.remove('fade-in');
+      } else if (!cfg.mtproto_enabled) {
         document.getElementById('sync-unavailable').style.display = '';
         document.getElementById('sync-form').style.display = 'none';
         document.getElementById('tg-auth-block').style.display = 'none';
-      } else if (!cfg.mtproto_authorized) {
-        // MTProto включён, но сессия не авторизована — показываем форму кода
+      } else if (cfg.mtproto_enabled && !cfg.mtproto_authorized) {
         document.getElementById('tg-auth-block').style.display = '';
         document.getElementById('sync-form').style.display = 'none';
         document.getElementById('sync-unavailable').style.display = 'none';
@@ -980,8 +987,14 @@
     const code = document.getElementById('tg-auth-code-input').value.trim();
     const pwd  = document.getElementById('tg-2fa-pwd-input').value.trim();
     const status = document.getElementById('tg-auth-status');
+    const btn = document.querySelector('#tg-auth-block .btn-primary');
+    
     if (!code) { status.textContent = '⚠️ Введите код из Telegram'; status.style.color = 'var(--danger)'; return; }
-    status.textContent = 'Отправляем…'; status.style.color = '';
+    
+    status.innerHTML = '<span class="spinner"></span>Авторизация в процессе…';
+    status.style.color = '';
+    if (btn) btn.disabled = true;
+    
     try {
       // Сначала отправляем 2FA пароль если заполнен — он должен быть в файле до обработки кода
       if (pwd) {
@@ -998,18 +1011,66 @@
         body: JSON.stringify({ code })
       });
       if (res.ok) {
-        status.textContent = '✅ Данные отправлены, авторизация в процессе…';
-        status.style.color = 'var(--success, #4caf50)';
-        setTimeout(loadConfig, 10000);
+        pollMtprotoStatus(30, 2000);
       } else {
         const err = await res.json().catch(() => ({}));
         status.textContent = '❌ ' + (err.error || 'Ошибка');
         status.style.color = 'var(--danger)';
+        if (btn) btn.disabled = false;
       }
     } catch (e) {
       status.textContent = '❌ Сетевая ошибка';
       status.style.color = 'var(--danger)';
+      if (btn) btn.disabled = false;
     }
+  }
+
+  let mtprotoPollInterval = null;
+
+  function pollMtprotoStatus(maxAttempts = 30, interval = 2000) {
+    let attempts = 0;
+    const btn = document.querySelector('#tg-auth-block .btn-primary');
+    const status = document.getElementById('tg-auth-status');
+    
+    if (mtprotoPollInterval) clearInterval(mtprotoPollInterval);
+    
+    mtprotoPollInterval = setInterval(async () => {
+      attempts++;
+      try {
+        const cfg = await fetch(API_BASE + '/api/config').then(r => r.json());
+        if (cfg.mtproto_authorized) {
+          clearInterval(mtprotoPollInterval);
+          if (btn) btn.disabled = false;
+          onMtprotoAuthorized();
+          return;
+        }
+      } catch (e) {}
+
+      if (attempts >= maxAttempts) {
+        clearInterval(mtprotoPollInterval);
+        status.textContent = '⚠️ Превышено время ожидания. Проверьте код и попробуйте снова.';
+        status.style.color = 'var(--danger)';
+        if (btn) btn.disabled = false;
+      }
+    }, interval);
+    
+    return () => clearInterval(mtprotoPollInterval);
+  }
+
+  function onMtprotoAuthorized() {
+    const authBlock = document.getElementById('tg-auth-block');
+    const syncForm = document.getElementById('sync-form');
+    const status = document.getElementById('tg-auth-status');
+    
+    authBlock.style.display = 'none';
+    syncForm.style.display = '';
+    syncForm.classList.add('fade-in');
+    
+    loadChannels();
+    populateSyncSelect();
+    
+    status.textContent = '✅ MTProto авторизован. Синхронизация доступна.';
+    status.style.color = 'var(--success, #4caf50)';
   }
 
   // ─── MAX Chats ────────────────────────────────────────────────────────────
