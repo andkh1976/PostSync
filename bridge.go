@@ -228,6 +228,7 @@ func (b *Bridge) notifyAdmin(ctx context.Context, text string) {
                 return
         }
         m := tgbotapi.NewMessage(b.cfg.AdminChatID, text)
+        m.ParseMode = "HTML"
         if _, err := b.tgBot.Send(m); err != nil {
                 slog.Error("Failed to notify admin", "err", err, "text", text)
         }
