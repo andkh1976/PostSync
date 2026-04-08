@@ -136,6 +136,12 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                         }
 
                         msg := update.Message
+
+                        // Дедупликация (как и для ChannelPost), локальный TG Bot API дублирует эвенты
+                        if b.tgMsgSeen(msg.Chat.ID, msg.MessageID) {
+                                continue
+                        }
+
                         text := strings.TrimSpace(msg.Text)
                         slog.Debug("TG msg received", "uid", tgUserID(msg), "chat", msg.Chat.ID, "type", msg.Chat.Type)
 
