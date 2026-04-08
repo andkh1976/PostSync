@@ -143,6 +143,7 @@ func NewBridge(cfg Config, repo Repository, tgBot *tgbotapi.BotAPI, maxApi *maxb
                 cpTgOwner: make(map[int64]int64),
                 breakers:  make(map[int64]*chatBreaker),
                 mgBuffers: make(map[string]*mediaGroupBuffer),
+                authFlows: make(map[int64]*AuthFlow),
         }
 }
 
