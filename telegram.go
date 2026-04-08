@@ -935,7 +935,7 @@ func (b *Bridge) handleTgChannelPost(ctx context.Context, msg *tgbotapi.Message)
 }
 
 // handleTgCallback обрабатывает нажатия inline-кнопок (crosspost management).
-func (b *Bridge) handleTgCallback(ctx context.Context, query *tgbotapi.CallbackQuery) {
+func (b *Bridge) handleTgCallback(_ context.Context, query *tgbotapi.CallbackQuery) {
         if query.Message == nil || query.From == nil {
                 return
         }
@@ -1143,7 +1143,7 @@ func (b *Bridge) handleTgCallback(ctx context.Context, query *tgbotapi.CallbackQ
                 }
                 b.setReplWait(fromID, maxChatID, dir, target)
                 edit := tgbotapi.NewEditMessageText(chatID, msgID,
-                        fmt.Sprintf("Отправьте правило замены:\n<code>from | to</code>\n\nДля регулярного выражения:\n<code>/regex/ | to</code>\n\nНапример:\n<code>utm_source=tg | utm_source=max</code>"))
+                        "Отправьте правило замены:\n<code>from | to</code>\n\nДля регулярного выражения:\n<code>/regex/ | to</code>\n\nНапример:\n<code>utm_source=tg | utm_source=max</code>")
                 edit.ParseMode = "HTML"
                 b.tgBot.Send(edit)
                 b.tgBot.Request(tgbotapi.NewCallback(query.ID, ""))

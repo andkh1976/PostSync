@@ -131,7 +131,7 @@ func mtprotoEntitiesToMarkdown(text string, entities []tg.MessageEntityClass) st
 		offset := e.GetOffset()
 		length := e.GetLength()
 
-		switch e.(type) {
+		switch e := e.(type) {
 		case *tg.MessageEntityBold:
 			open, close = "**", "**"
 		case *tg.MessageEntityItalic:
@@ -143,9 +143,8 @@ func mtprotoEntitiesToMarkdown(text string, entities []tg.MessageEntityClass) st
 		case *tg.MessageEntityStrike:
 			open, close = "~~", "~~"
 		case *tg.MessageEntityTextURL:
-			et := e.(*tg.MessageEntityTextURL)
 			open = "["
-			close = fmt.Sprintf("](%s)", et.URL)
+			close = fmt.Sprintf("](%s)", e.URL)
 		default:
 			continue
 		}

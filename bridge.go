@@ -222,7 +222,7 @@ func (c *Config) maxMaxFileBytes() int64 {
 
 // notifyAdmin отправляет сообщение об ошибке администратору бота.
 // Если AdminChatID не задан (0), ошибка только логируется.
-func (b *Bridge) notifyAdmin(ctx context.Context, text string) {
+func (b *Bridge) notifyAdmin(_ context.Context, text string) {
         if b.cfg.AdminChatID == 0 {
                 slog.Warn("Admin notification", "text", text)
                 return

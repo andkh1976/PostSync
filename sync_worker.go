@@ -117,51 +117,39 @@ func (b *Bridge) resolveChannelPeer(ctx context.Context, api *tg.Client, tgChatI
 
 	// Получаем диалоги порциями, ищем нужный канал
 	var offsetPeer tg.InputPeerClass = &tg.InputPeerEmpty{}
-	for {
-		result, err := api.MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
-			Limit:      100,
-			OffsetPeer: offsetPeer,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("MessagesGetDialogs: %w", err)
-		}
-
-		var chats []tg.ChatClass
-		var dialogCount int
-		switch d := result.(type) {
-		case *tg.MessagesDialogs:
-			chats = d.Chats
-			dialogCount = len(d.Dialogs)
-		case *tg.MessagesDialogsSlice:
-			chats = d.Chats
-			dialogCount = len(d.Dialogs)
-		default:
-			return nil, fmt.Errorf("unexpected dialogs response type: %T", result)
-		}
-
-		for _, chat := range chats {
-			switch ch := chat.(type) {
-			case *tg.Channel:
-				if ch.ID == channelID {
-					slog.Debug("Resolved channel peer", "channelID", channelID, "title", ch.Title)
-					return &tg.InputPeerChannel{
-						ChannelID:  ch.ID,
-						AccessHash: ch.AccessHash,
-					}, nil
-				}
-			}
-		}
-
-		// Если получили меньше лимита — диалогов больше нет
-		if dialogCount < 100 {
-			break
-		}
-
-		// Иначе двигаем offset (используем последний диалог как точку отсчёта)
-		// Простейший выход: не пагинировать если не нашли в первой пачке
-		break
+	
+	result, err := api.MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
+		Limit:      100,
+		OffsetPeer: offsetPeer,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("MessagesGetDialogs: %w", err)
 	}
 
+	var chats []tg.ChatClass
+	switch d := result.(type) {
+	case *tg.MessagesDialogs:
+		chats = d.Chats
+	case *tg.MessagesDialogsSlice:
+		chats = d.Chats
+	default:
+		return nil, fmt.Errorf("unexpected dialogs response type: %T", result)
+	}
+
+	for _, chat := range chats {
+		switch ch := chat.(type) {
+		case *tg.Channel:
+			if ch.ID == channelID {
+				slog.Debug("Resolved channel peer", "channelID", channelID, "title", ch.Title)
+				return &tg.InputPeerChannel{
+					ChannelID:  ch.ID,
+					AccessHash: ch.AccessHash,
+				}, nil
+			}
+		}
+	}
+
+	// Простейший выход: не пагинировать если не нашли в первой пачке
 	return nil, fmt.Errorf("channel %d not found in user's dialogs (tgChatID=%d)", channelID, tgChatID)
 }
 
