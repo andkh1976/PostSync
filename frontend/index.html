@@ -6,6 +6,7 @@
   <title>Bridge Control Panel</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600&display=swap');
     :root {
       --bg: #f0f2f5;
       --card: #ffffff;
@@ -35,11 +36,15 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       padding: 16px;
+    }
+
+    code, .profile-value, .channel-meta, .task-meta, .task-title, .status-bar, .badge-pending, .badge-processing, .badge-done, .badge-failed {
+      font-family: 'Fira Code', monospace;
     }
 
     h1 {
@@ -71,7 +76,12 @@
       gap: 8px;
     }
 
-    .card-title .icon { font-size: 18px; }
+    .card-title .icon { 
+      font-size: 18px; 
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     .channel-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -213,11 +223,11 @@
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 0.15s;
+      transition: transform 0.15s, opacity 0.15s;
     }
 
-    .btn:active { opacity: 0.8; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn:active { transform: scale(0.97); opacity: 0.8; }
+    .btn:disabled { transform: scale(1); opacity: 0.5; cursor: not-allowed; }
 
     .btn-primary { background: var(--primary); color: white; }
     .btn-danger  { background: var(--danger);  color: white; }
@@ -489,18 +499,18 @@
 </head>
 <body>
 
-<h1>⚙️ Bridge Control Panel</h1>
+<h1 style="display:flex;align-items:center;gap:6px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg> Bridge Control Panel</h1>
 <p class="subtitle">Управление синхронизацией TG ↔ MAX</p>
 
 <!-- ── Профиль (Sprint 4) ──────────────────────────────────────────────── -->
 <div class="card">
-  <div class="card-title"><span class="icon">👤</span> Профиль</div>
+  <div class="card-title"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span> Профиль</div>
   <div id="profile-container" class="loading"><span class="spinner"></span>Загрузка...</div>
 </div>
 
 <!-- ── Активные связки каналов ──────────────────────────────────────────── -->
 <div class="card">
-  <div class="card-title"><span class="icon">🔗</span> Активные связки каналов</div>
+  <div class="card-title"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></span> Активные связки каналов</div>
   <div id="channels-container" class="loading"><span class="spinner"></span>Загрузка...</div>
 
   <div class="add-pair-form">
@@ -510,11 +520,9 @@
       <input type="number" id="pair-tg-id" class="input-field" placeholder="-1001234567890" />
     </div>
     <div class="input-group">
-      <label class="input-label" for="pair-max-select">MAX-канал (куда пересылать)</label>
-      <select id="pair-max-select" class="input-field">
-        <option value="">— выберите MAX-канал —</option>
-      </select>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px">Если список пуст — добавьте бота в MAX-канал и напишите там /chatid</div>
+      <label class="input-label" for="pair-max-id">ID MAX-канала (куда пересылать)</label>
+      <input type="number" id="pair-max-id" class="input-field" placeholder="Например: 1234567" />
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">Добавьте бота в MAX-канал и напишите там /chatid, чтобы узнать ID</div>
     </div>
     <button class="btn btn-primary" id="btn-add-pair" onclick="addPair()" style="width:100%">
       🔗 Создать связку
@@ -526,7 +534,7 @@
 <!-- ── Задачи синхронизации (Sprint 4) ─────────────────────────────────── -->
 <div class="card">
   <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-    <span><span class="icon">⏳</span> Задачи синхронизации</span>
+    <span><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span> Задачи синхронизации</span>
     <button class="btn btn-danger" id="btn-clear-history" onclick="clearTaskHistory()" style="font-size:11px;padding:4px 10px">🗑 Очистить историю</button>
   </div>
   <div id="tasks-container" class="loading"><span class="spinner"></span>Загрузка...</div>
@@ -534,30 +542,46 @@
 
 <!-- ── Синхронизация истории ─────────────────────────────────────────────── -->
 <div class="card" id="sync-card">
-  <div class="card-title"><span class="icon">📥</span> Синхронизация истории</div>
+  <div class="card-title"><span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></span> Синхронизация истории</div>
   <div id="sync-unavailable" style="display:none" class="empty-state">
     ⚠️ Недоступно — требуется настройка MTProto.<br>
     Задайте переменные <b>TG_APP_ID</b>, <b>TG_APP_HASH</b> и <b>TG_PHONE</b> для активации.
   </div>
 
-  <!-- Форма авторизации MTProto (код + 2FA пароль) -->
-  <div id="tg-auth-block" style="display:none">
-    <div class="empty-state" style="background:rgba(255,193,7,0.12); border:1px solid rgba(255,193,7,0.4); margin-bottom:12px">
-      🔐 MTProto требует подтверждения. Telegram отправил код на номер телефона.<br>
-      Введите код и, если включена двухэтапная проверка, облачный пароль.
+  <!-- Блок авторизации MTProto (SaaS): Шаг 1 - Номер телефона -->
+  <div id="tg-phone-block" style="display:none;" class="fade-in">
+    <div style="background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.4); border-radius:var(--radius); padding:16px; margin-bottom:16px;">
+      <h3 style="font-size:14px; font-weight:600; color:var(--primary); margin-bottom:8px;">Подключение Telegram</h3>
+      <p style="font-size:13px; color:var(--text); line-height:1.4;">Чтобы скачивать историю сообщений, необходимо привязать свой аккаунт.</p>
     </div>
     <div class="form-row">
+      <label for="tg-phone-input">Номер телефона (с кодом страны)</label>
+      <input type="tel" id="tg-phone-input" class="input-field" placeholder="+79001234567" />
+    </div>
+    <div class="action-btns">
+      <button class="btn btn-primary" id="btn-tg-phone" onclick="submitTgPhone()" style="width:100%">Получить код</button>
+    </div>
+    <div class="status-bar" id="tg-phone-status"></div>
+  </div>
+
+  <!-- Блок авторизации MTProto (SaaS): Шаг 2 - Код и Пароль -->
+  <div id="tg-auth-block" style="display:none;" class="fade-in">
+    <div style="background:rgba(255,193,7,0.12); border:1px solid rgba(255,193,7,0.4); border-radius:var(--radius); padding:16px; margin-bottom:16px;">
+      <h3 style="font-size:14px; font-weight:600; color:var(--warning); margin-bottom:8px;">Подтверждение</h3>
+      <p style="font-size:13px; color:var(--text); line-height:1.4;">Код отправлен в ваши сообщения Telegram. Введите его ниже. Если включена двухэтапная проверка, укажите облачный пароль.</p>
+    </div>
+    <div class="form-row" style="flex-direction:row; gap:10px;">
       <div style="flex:1">
-        <label for="tg-auth-code-input">Код из Telegram (SMS или приложение)</label>
-        <input type="text" id="tg-auth-code-input" class="date-field" style="width:100%" placeholder="12345" maxlength="10" inputmode="numeric" />
+        <label for="tg-auth-code-input">Код авторизации</label>
+        <input type="text" id="tg-auth-code-input" class="input-field" placeholder="12345" inputmode="numeric" />
       </div>
       <div style="flex:1">
-        <label for="tg-2fa-pwd-input">Облачный пароль 2FA <span style="opacity:.6;font-size:.85em">(если включён)</span></label>
-        <input type="password" id="tg-2fa-pwd-input" class="date-field" style="width:100%" placeholder="••••••••" />
+        <label for="tg-2fa-pwd-input">Пароль (2FA)</label>
+        <input type="password" id="tg-2fa-pwd-input" class="input-field" placeholder="••••••••" />
       </div>
     </div>
     <div class="action-btns">
-      <button class="btn btn-primary" onclick="submitTgAuth()">Отправить</button>
+      <button class="btn btn-primary" id="btn-tg-auth" onclick="submitTgAuth()" style="width:100%">Войти</button>
     </div>
     <div class="status-bar" id="tg-auth-status"></div>
   </div>
@@ -794,9 +818,9 @@
 
   async function addPair() {
     const tgID  = parseInt(document.getElementById('pair-tg-id').value, 10);
-    const maxID = parseInt(document.getElementById('pair-max-select').value, 10);
+    const maxID = parseInt(document.getElementById('pair-max-id').value, 10);
     if (!tgID) return showStatus('pair-status', 'Введите ID Telegram-канала', 'err');
-    if (!maxID) return showStatus('pair-status', 'Выберите MAX-канал из списка', 'err');
+    if (!maxID) return showStatus('pair-status', 'Введите ID MAX-канала', 'err');
 
     setLoading('btn-add-pair', true);
     try {
@@ -805,7 +829,7 @@
         body: JSON.stringify({ tg_chat_id: tgID, max_chat_id: maxID }),
       });
       document.getElementById('pair-tg-id').value = '';
-      document.getElementById('pair-max-select').value = '';
+      document.getElementById('pair-max-id').value = '';
       showStatus('pair-status', '✓ Связка создана', 'ok');
       await loadChannels();
     } catch (e) {
@@ -960,147 +984,129 @@
       .replace(/"/g, '&quot;');
   }
 
-  // ─── Config ───────────────────────────────────────────────────────────────
+  // ─── Config & Auth (MTProto SaaS) ─────────────────────────────────────────
   async function loadConfig() {
     try {
       const cfg = await fetch(API_BASE + '/api/config').then(r => r.json());
-      if (cfg.mtproto_authorized === true) {
-        document.getElementById('sync-unavailable').style.display = 'none';
-        document.getElementById('tg-auth-block').style.display = 'none';
-        document.getElementById('sync-form').style.display = '';
-        document.getElementById('sync-form').classList.remove('fade-in');
-      } else if (!cfg.mtproto_enabled) {
+      if (!cfg.mtproto_enabled) {
         document.getElementById('sync-unavailable').style.display = '';
         document.getElementById('sync-form').style.display = 'none';
+        document.getElementById('tg-phone-block').style.display = 'none';
         document.getElementById('tg-auth-block').style.display = 'none';
-      } else if (cfg.mtproto_enabled && !cfg.mtproto_authorized) {
-        document.getElementById('tg-auth-block').style.display = '';
-        document.getElementById('sync-form').style.display = 'none';
-        document.getElementById('sync-unavailable').style.display = 'none';
+        return;
+      }
+      checkMtprotoStatus();
+    } catch (e) {}
+  }
+
+  async function checkMtprotoStatus() {
+    try {
+      const res = await apiFetch('/api/mtproto/auth/status');
+      const sForm = document.getElementById('sync-form');
+      const pBlock = document.getElementById('tg-phone-block');
+      const cBlock = document.getElementById('tg-auth-block');
+      const sUnavail = document.getElementById('sync-unavailable');
+      
+      sUnavail.style.display = 'none';
+
+      if (res.status === 'authorized') {
+        sForm.style.display = '';
+        sForm.classList.add('fade-in');
+        pBlock.style.display = 'none';
+        cBlock.style.display = 'none';
+        populateSyncSelect();
+      } else if (res.status === 'waiting_code' || res.status === 'waiting_password') {
+        sForm.style.display = 'none';
+        pBlock.style.display = 'none';
+        cBlock.style.display = '';
+        cBlock.classList.add('fade-in');
+        setLoading('btn-tg-phone', false);
+        showStatus('tg-phone-status', '', 'ok');
+      } else {
+        sForm.style.display = 'none';
+        pBlock.style.display = '';
+        pBlock.classList.add('fade-in');
+        cBlock.style.display = 'none';
       }
     } catch (e) {
-      // если не получилось — показываем форму как есть
+      console.error("status check err", e);
+    }
+  }
+
+  async function submitTgPhone() {
+    const phone = document.getElementById('tg-phone-input').value.trim();
+    if (!phone) return showStatus('tg-phone-status', 'Введите номер телефона', 'err');
+    
+    setLoading('btn-tg-phone', true);
+    document.getElementById('tg-phone-status').innerHTML = '<span class="spinner"></span>Отправка...';
+    
+    try {
+      await apiFetch('/api/mtproto/auth/start', { method: 'POST' });
+      await apiFetch('/api/mtproto/auth/phone', { method: 'POST', body: JSON.stringify({ phone }) });
+      pollMtprotoAuthStatus();
+    } catch (e) {
+      showStatus('tg-phone-status', '❌ ' + e.message, 'err');
+      setLoading('btn-tg-phone', false);
     }
   }
 
   async function submitTgAuth() {
     const code = document.getElementById('tg-auth-code-input').value.trim();
     const pwd  = document.getElementById('tg-2fa-pwd-input').value.trim();
-    const status = document.getElementById('tg-auth-status');
-    const btn = document.querySelector('#tg-auth-block .btn-primary');
     
-    if (!code) { status.textContent = '⚠️ Введите код из Telegram'; status.style.color = 'var(--danger)'; return; }
+    if (!code) return showStatus('tg-auth-status', 'Введите код', 'err');
     
-    status.innerHTML = '<span class="spinner"></span>Авторизация в процессе…';
-    status.style.color = '';
-    if (btn) btn.disabled = true;
+    setLoading('btn-tg-auth', true);
+    document.getElementById('tg-auth-status').innerHTML = '<span class="spinner"></span>Проверка...';
     
     try {
-      // Сначала отправляем 2FA пароль если заполнен — он должен быть в файле до обработки кода
       if (pwd) {
-        await fetch(API_BASE + '/api/tg-2fa-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pwd })
-        });
+        await apiFetch('/api/mtproto/auth/password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
       }
-      // Теперь отправляем код
-      const res = await fetch(API_BASE + '/api/tg-auth-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
-      });
-      if (res.ok) {
-        pollMtprotoStatus(30, 2000);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        status.textContent = '❌ ' + (err.error || 'Ошибка');
-        status.style.color = 'var(--danger)';
-        if (btn) btn.disabled = false;
-      }
+      await apiFetch('/api/mtproto/auth/code', { method: 'POST', body: JSON.stringify({ code }) });
+      
+      pollMtprotoAuthStatus();
     } catch (e) {
-      status.textContent = '❌ Сетевая ошибка';
-      status.style.color = 'var(--danger)';
-      if (btn) btn.disabled = false;
+      showStatus('tg-auth-status', '❌ ' + e.message, 'err');
+      setLoading('btn-tg-auth', false);
     }
   }
 
-  let mtprotoPollInterval = null;
-
-  function pollMtprotoStatus(maxAttempts = 30, interval = 2000) {
+  let authPollInterval = null;
+  function pollMtprotoAuthStatus() {
+    if (authPollInterval) clearInterval(authPollInterval);
     let attempts = 0;
-    const btn = document.querySelector('#tg-auth-block .btn-primary');
-    const status = document.getElementById('tg-auth-status');
-    
-    if (mtprotoPollInterval) clearInterval(mtprotoPollInterval);
-    
-    mtprotoPollInterval = setInterval(async () => {
+    authPollInterval = setInterval(async () => {
       attempts++;
+      if (attempts > 30) {
+         clearInterval(authPollInterval);
+         showStatus('tg-auth-status', '⚠️ Время ожидания истекло. Попробуйте снова.', 'err');
+         showStatus('tg-phone-status', '⚠️ Время ожидания истекло. Попробуйте снова.', 'err');
+         setLoading('btn-tg-phone', false);
+         setLoading('btn-tg-auth', false);
+         return;
+      }
       try {
-        const cfg = await fetch(API_BASE + '/api/config').then(r => r.json());
-        if (cfg.mtproto_authorized) {
-          clearInterval(mtprotoPollInterval);
-          if (btn) btn.disabled = false;
-          onMtprotoAuthorized();
-          return;
+        const res = await apiFetch('/api/mtproto/auth/status');
+        if (res.status === 'authorized') {
+          clearInterval(authPollInterval);
+          checkMtprotoStatus();
+        } else if (res.status === 'error') {
+          clearInterval(authPollInterval);
+          showStatus('tg-auth-status', '❌ ' + (res.error || 'Ошибка'), 'err');
+          showStatus('tg-phone-status', '❌ ' + (res.error || 'Ошибка'), 'err');
+          setLoading('btn-tg-phone', false);
+          setLoading('btn-tg-auth', false);
+        } else if (res.status === 'waiting_code' || res.status === 'waiting_password') {
+          if (document.getElementById('tg-phone-block').style.display !== 'none') {
+             checkMtprotoStatus();
+          }
         }
       } catch (e) {}
-
-      if (attempts >= maxAttempts) {
-        clearInterval(mtprotoPollInterval);
-        status.textContent = '⚠️ Превышено время ожидания. Проверьте код и попробуйте снова.';
-        status.style.color = 'var(--danger)';
-        if (btn) btn.disabled = false;
-      }
-    }, interval);
-    
-    return () => clearInterval(mtprotoPollInterval);
+    }, 2000);
   }
 
-  function onMtprotoAuthorized() {
-    const authBlock = document.getElementById('tg-auth-block');
-    const syncForm = document.getElementById('sync-form');
-    const status = document.getElementById('tg-auth-status');
-    
-    authBlock.style.display = 'none';
-    syncForm.style.display = '';
-    syncForm.classList.add('fade-in');
-    
-    loadChannels();
-    populateSyncSelect();
-    
-    status.textContent = '✅ MTProto авторизован. Синхронизация доступна.';
-    status.style.color = 'var(--success, #4caf50)';
-  }
 
-  // ─── MAX Chats ────────────────────────────────────────────────────────────
-  async function loadMaxChats() {
-    const sel = document.getElementById('pair-max-select');
-    if (!sel) return;
-    try {
-      const chats = await fetch(API_BASE + '/api/max/chats').then(r => r.json());
-      sel.innerHTML = '<option value="">— выберите MAX-канал —</option>';
-      if (Array.isArray(chats) && chats.length > 0) {
-        chats.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.chat_id;
-          const title = c.title || '(без названия)';
-          const typeLabel = c.chat_type === 'channel' ? '📢' : c.chat_type === 'chat' ? '👥' : '💬';
-          const hasOwnEmoji = /^\p{Emoji}/u.test(title);
-          const prefix = hasOwnEmoji ? '' : typeLabel + ' ';
-          opt.textContent = `${prefix}${title} [${c.chat_id}]`;
-          sel.appendChild(opt);
-        });
-      } else {
-        const opt = document.createElement('option');
-        opt.disabled = true;
-        opt.textContent = 'Нет доступных чатов — добавьте бота в MAX-канал';
-        sel.appendChild(opt);
-      }
-    } catch (e) {
-      // Не критично — подсказка внизу объяснит что делать
-    }
-  }
 
   // ─── Date Picker (Popup) ─────────────────────────────────────────────────
   const dpPopup = document.createElement('div');
@@ -1246,7 +1252,6 @@
   loadChannels();
   loadTasks();
   loadConfig();
-  loadMaxChats();
 </script>
 </body>
 </html>

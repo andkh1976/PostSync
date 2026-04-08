@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
-	"github.com/gotd/td/telegram/auth"
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
@@ -19,112 +16,15 @@ import (
 	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
 )
 
-// runWithMTProto инициализирует MTProto клиент и запускает sync worker.
-// Вызывается в отдельной горутине из Bridge.Run().
-// Автоматически повторяет попытку при флуд-ошибках Telegram.
-func (b *Bridge) runWithMTProto(ctx context.Context) {
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		delay := b.tryMTProtoOnce(ctx)
-		if delay == 0 {
-			return // успех или контекст отменён
-		}
-		slog.Info("MTProto: retry after flood delay", "delay", delay)
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(delay):
-		}
-	}
-}
-
-// tryMTProtoOnce делает одну попытку подключения/авторизации.
-// Возвращает 0 если завершено успешно или контекст отменён.
-// Возвращает задержку ожидания если нужна повторная попытка.
-func (b *Bridge) tryMTProtoOnce(ctx context.Context) time.Duration {
-	// Удаляем старый файл сессии при флуд-ошибках (он несовместим)
-	sessionStorage := &session.FileStorage{Path: b.cfg.TGSessionFile}
-
-	client := telegram.NewClient(b.cfg.TGAppID, b.cfg.TGAppHash, telegram.Options{
-		SessionStorage: sessionStorage,
-	})
-
-	err := client.Run(ctx, func(ctx context.Context) error {
-		authClient := client.Auth()
-
-		status, err := authClient.Status(ctx)
-		if err != nil {
-			return fmt.Errorf("auth status check: %w", err)
-		}
-
-		if !status.Authorized {
-			if b.cfg.TGPhone == "" {
-				slog.Warn("MTProto: session not authorized and TG_PHONE not set; sync worker disabled")
-				<-ctx.Done()
-				return nil
-			}
-
-			slog.Info("MTProto: starting phone authorization", "phone", b.cfg.TGPhone)
-			flow := auth.NewFlow(
-				&fileBasedAuth{phone: b.cfg.TGPhone, password: b.cfg.TG2FAPassword},
-				auth.SendCodeOptions{},
-			)
-			if err := authClient.IfNecessary(ctx, flow); err != nil {
-				return fmt.Errorf("MTProto auth: %w", err)
-			}
-			slog.Info("MTProto: authorization successful")
-			b.mtprotoReady.Store(true)
-		}
-
-		b.mtprotoReady.Store(true)
-		slog.Info("MTProto client ready, starting sync worker")
-		b.runSyncWorker(ctx, client.API())
-		return nil
-	})
-
-	if ctx.Err() != nil {
-		return 0
-	}
-	if err == nil {
-		return 0
-	}
-
-	errStr := err.Error()
-	slog.Error("MTProto client stopped with error", "err", err)
-
-	// Флуд-лимит по паролю — ждём 4 часа
-	if strings.Contains(errStr, "PHONE_PASSWORD_FLOOD") {
-		os.Remove(b.cfg.TGSessionFile)
-		slog.Warn("MTProto: PHONE_PASSWORD_FLOOD — waiting 4 hours before retry")
-		return 4 * time.Hour
-	}
-	// Флуд по запросам кода — ждём 1 час
-	if strings.Contains(errStr, "FLOOD_WAIT") || strings.Contains(errStr, "FLOOD") {
-		os.Remove(b.cfg.TGSessionFile)
-		slog.Warn("MTProto: flood limit hit — waiting 1 hour before retry")
-		return time.Hour
-	}
-	// AUTH_RESTART — попробуем через 30 секунд
-	if strings.Contains(errStr, "AUTH_RESTART") {
-		os.Remove(b.cfg.TGSessionFile)
-		slog.Warn("MTProto: AUTH_RESTART — retrying in 30s")
-		return 30 * time.Second
-	}
-	// Прочие ошибки — 30 секунд
-	return 30 * time.Second
-}
-
 // runSyncWorker проверяет таблицу sync_tasks каждые 30 секунд
 // и обрабатывает задачи со статусом pending.
-func (b *Bridge) runSyncWorker(ctx context.Context, api *tg.Client) {
-	slog.Info("Sync worker started")
+func (b *Bridge) runSyncWorker(ctx context.Context) {
+	slog.Info("Sync worker started (SaaS Mode)")
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	// Немедленная проверка при старте
-	b.processPendingSyncTasks(ctx, api)
+	b.processPendingSyncTasks(ctx)
 
 	for {
 		select {
@@ -132,13 +32,13 @@ func (b *Bridge) runSyncWorker(ctx context.Context, api *tg.Client) {
 			slog.Info("Sync worker stopped")
 			return
 		case <-ticker.C:
-			b.processPendingSyncTasks(ctx, api)
+			b.processPendingSyncTasks(ctx)
 		}
 	}
 }
 
 // processPendingSyncTasks получает все pending задачи и последовательно обрабатывает.
-func (b *Bridge) processPendingSyncTasks(ctx context.Context, api *tg.Client) {
+func (b *Bridge) processPendingSyncTasks(ctx context.Context) {
 	tasks, err := b.repo.GetPendingSyncTasks()
 	if err != nil {
 		slog.Error("Sync worker: failed to fetch pending tasks", "err", err)
@@ -162,17 +62,46 @@ func (b *Bridge) processPendingSyncTasks(ctx context.Context, api *tg.Client) {
 
 		slog.Info("Sync worker: starting task",
 			"taskID", task.ID,
+			"userID", task.UserID,
 			"tgChatID", task.TgChatID,
 			"maxChatID", task.MaxChatID,
 			"from", task.StartDate.Format("2006-01-02"),
 			"to", task.EndDate.Format("2006-01-02"),
 		)
 
-		if err := b.processSyncTask(ctx, api, task); err != nil {
+		err := b.runTaskWithSaaSClient(ctx, task)
+		if err != nil {
 			slog.Error("Sync worker: task failed", "taskID", task.ID, "err", err)
 			_ = b.repo.SetSyncTaskStatus(task.ID, "failed", err.Error())
 		}
 	}
+}
+
+// runTaskWithSaaSClient инициализирует изолированный MTProto-клиент для пользователя и выполняет задачу.
+func (b *Bridge) runTaskWithSaaSClient(ctx context.Context, task SyncTask) error {
+	sessionBytes, err := b.repo.GetMTProtoSession(task.UserID)
+	if err != nil || len(sessionBytes) == 0 {
+		return fmt.Errorf("no MTProto session found for user %d", task.UserID)
+	}
+
+	memSession := &MemorySessionStorage{Data: sessionBytes}
+	client := telegram.NewClient(b.cfg.TGAppID, b.cfg.TGAppHash, telegram.Options{
+		SessionStorage: memSession,
+		NoUpdates:      true,
+	})
+
+	return client.Run(ctx, func(ctx context.Context) error {
+		status, err := client.Auth().Status(ctx)
+		if err != nil {
+			return fmt.Errorf("auth status check: %w", err)
+		}
+
+		if !status.Authorized {
+			return fmt.Errorf("user %d session is not authorized", task.UserID)
+		}
+
+		return b.processSyncTask(ctx, client.API(), task)
+	})
 }
 
 // resolveChannelPeer находит tg.InputPeerClass для канала по его chat ID.
@@ -525,71 +454,3 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, api *tg.Client, msg
 	return nil
 }
 
-// ─── fileBasedAuth — кастомный UserAuthenticator ────────────────────────────
-// Читает код авторизации из /tmp/tg_auth_code и пароль 2FA из
-// /tmp/tg_2fa_password (или из конфига). Не требует перезапуска.
-
-type fileBasedAuth struct {
-	phone    string
-	password string // начальное значение из конфига; перезаписывается файлом
-}
-
-func (a *fileBasedAuth) Phone(_ context.Context) (string, error) {
-	return a.phone, nil
-}
-
-// Password ждёт 2FA-пароль из файла /tmp/tg_2fa_password.
-// Конфиг используется только как начальное значение файла (если файл пуст).
-// Всегда ждёт — пользователь вводит через Mini App / POST /api/tg-2fa-password.
-func (a *fileBasedAuth) Password(ctx context.Context) (string, error) {
-	const pwdFile = "/tmp/tg_2fa_password"
-	slog.Info("MTProto: waiting for 2FA password",
-		"hint", "POST /api/tg-2fa-password or write password to "+pwdFile)
-	for {
-		if data, err := os.ReadFile(pwdFile); err == nil {
-			if p := strings.TrimSpace(string(data)); p != "" {
-				os.Remove(pwdFile)
-				slog.Info("MTProto: 2FA password received from file")
-				return p, nil
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(2 * time.Second):
-		}
-	}
-}
-
-// Code читает одноразовый код из /tmp/tg_auth_code (опрос каждые 3 сек).
-func (a *fileBasedAuth) Code(ctx context.Context, _ *tg.AuthSentCode) (string, error) {
-	const codeFile = "/tmp/tg_auth_code"
-	slog.Info("MTProto: waiting for auth code",
-		"hint", "POST /api/tg-auth-code or write code to "+codeFile)
-	for {
-		if data, err := os.ReadFile(codeFile); err == nil {
-			if code := strings.TrimSpace(string(data)); code != "" {
-				os.Remove(codeFile)
-				slog.Info("MTProto: auth code read from file")
-				return code, nil
-			}
-		}
-		if code := strings.TrimSpace(os.Getenv("TG_AUTH_CODE")); code != "" {
-			slog.Info("MTProto: auth code from env var")
-			return code, nil
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(3 * time.Second):
-		}
-	}
-}
-
-func (a *fileBasedAuth) AcceptTermsOfService(_ context.Context, tos tg.HelpTermsOfService) error {
-	return &auth.SignUpRequired{TermsOfService: tos}
-}
-
-func (a *fileBasedAuth) SignUp(_ context.Context) (auth.UserInfo, error) {
-	return auth.UserInfo{}, fmt.Errorf("sign up not supported")
-}

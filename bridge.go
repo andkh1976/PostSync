@@ -67,8 +67,12 @@ type Bridge struct {
         apiClient  *http.Client // для коротких API-запросов (малый таймаут)
         whSecret   string // random path segment for webhook URLs
 
-        // mtprotoReady — true когда MTProto успешно авторизован (не просто файл сессии)
+        // mtprotoReady — true когда глобальный (дежурный) MTProto успешно авторизован (legacy)
         mtprotoReady atomic.Bool
+
+        // MTProto SaaS Auth Flows
+        authFlowsMu sync.Mutex
+        authFlows   map[int64]*AuthFlow // TG User ID -> flow
 
         cpWaitMu sync.Mutex
         cpWait   map[int64]int64 // MAX userId → TG channel ID (ожидание пересылки)
@@ -388,9 +392,10 @@ func (b *Bridge) Run(ctx context.Context) {
         }
         go b.startHTTPServer(ctx, http.DefaultServeMux)
 
-        // Запускаем воркер ретроспективной синхронизации если MTProto настроен
+        // Запускаем воркер ретроспективной синхронизации в SaaS режиме.
+        // Он будет сам поднимать изолированные клиенты MTProto для каждой задачи.
         if b.cfg.TGAppID != 0 && b.cfg.TGAppHash != "" {
-                go b.runWithMTProto(ctx)
+                go b.runSyncWorker(ctx)
         }
 
         // При старте получаем все MAX-чаты, в которых уже состоит бот

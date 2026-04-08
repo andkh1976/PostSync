@@ -10,12 +10,13 @@ import (
         "log/slog"
         "net/http"
         "net/url"
-        "os"
         "sort"
         "strings"
         "time"
 
         tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+        "github.com/gotd/td/telegram"
+        "github.com/gotd/td/telegram/auth"
 )
 
 // apiOwner содержит данные авторизованного пользователя, извлечённые из initData.
@@ -848,26 +849,15 @@ func (b *Bridge) registerAPIRoutes(mux *http.ServeMux) {
         mux.HandleFunc("/api/channels/pair", b.handleAPIChannelsPair)
         mux.HandleFunc("/api/channels/delete", b.handleAPIChannelsDelete)
         mux.HandleFunc("/api/replacements", b.handleAPIReplacements)
-        mux.HandleFunc("/api/tg-auth-code", b.handleAPITgAuthCode)
-        mux.HandleFunc("/api/tg-2fa-password", b.handleAPITg2FAPassword)
-        mux.HandleFunc("/api/max/chats", b.handleAPIMaxChats)
+        // MTProto SaaS Auth
+        mux.HandleFunc("/api/mtproto/auth/status", b.handleAPIMTProtoAuthStatus)
+        mux.HandleFunc("/api/mtproto/auth/start", b.handleAPIMTProtoAuthStart)
+        mux.HandleFunc("/api/mtproto/auth/phone", b.handleAPIMTProtoAuthPhone)
+        mux.HandleFunc("/api/mtproto/auth/code", b.handleAPIMTProtoAuthCode)
+        mux.HandleFunc("/api/mtproto/auth/password", b.handleAPIMTProtoAuthPassword)
 }
 
-// handleAPIMaxChats — GET /api/max/chats
-// Возвращает список MAX-чатов, в которых состоит бот (из таблицы max_known_chats).
-// Не требует авторизации — список чатов публичен для любого владельца.
-func (b *Bridge) handleAPIMaxChats(w http.ResponseWriter, r *http.Request) {
-        if r.Method != http.MethodGet {
-                writeError(w, http.StatusMethodNotAllowed, "method not allowed")
-                return
-        }
-        chats := b.repo.ListMaxKnownChats()
-        if chats == nil {
-                chats = []MaxKnownChat{}
-        }
-        w.Header().Set("Content-Type", "application/json")
-        json.NewEncoder(w).Encode(chats)
-}
+
 
 // handleAPIConfig — GET /api/config
 // Возвращает флаги доступности функций (без авторизации).
@@ -887,59 +877,210 @@ func (b *Bridge) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
         })
 }
 
-// handleAPITgAuthCode — POST /api/tg-auth-code
-// Принимает код авторизации MTProto и записывает его в /tmp/tg_auth_code.
-func (b *Bridge) handleAPITgAuthCode(w http.ResponseWriter, r *http.Request) {
+// handleAPIMTProtoAuthStatus — GET /api/mtproto/auth/status
+func (b *Bridge) handleAPIMTProtoAuthStatus(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Access-Control-Allow-Origin", "*")
         if r.Method == http.MethodOptions {
                 w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
                 w.WriteHeader(http.StatusNoContent)
                 return
         }
-        if r.Method != http.MethodPost {
-                writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        b.authFlowsMu.Lock()
+        flow, exists := b.authFlows[owner.UserID]
+        b.authFlowsMu.Unlock()
+
+        if exists {
+                writeJSON(w, http.StatusOK, map[string]string{
+                        "status": flow.Status,
+                        "error":  flow.Error,
+                })
+                return
+        }
+
+        // Если флоу нет, проверим есть ли уже сессия в БД
+        sessionBytes, err := b.repo.GetMTProtoSession(owner.UserID)
+        if err == nil && len(sessionBytes) > 0 {
+                writeJSON(w, http.StatusOK, map[string]interface{}{
+                        "status": "authorized",
+                })
+                return
+        }
+
+        writeJSON(w, http.StatusOK, map[string]string{
+                "status": "none",
+        })
+}
+
+// handleAPIMTProtoAuthStart — POST /api/mtproto/auth/start
+func (b *Bridge) handleAPIMTProtoAuthStart(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        if r.Method == http.MethodOptions {
+                w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+                w.WriteHeader(http.StatusNoContent)
+                return
+        }
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        b.authFlowsMu.Lock()
+        if existing, ok := b.authFlows[owner.UserID]; ok {
+                existing.cancel()
+        }
+        flow := NewAuthFlow()
+        b.authFlows[owner.UserID] = flow
+        b.authFlowsMu.Unlock()
+
+        go b.runSaaSAuthClient(owner.UserID, flow)
+
+        writeJSON(w, http.StatusOK, map[string]string{"status": flow.Status})
+}
+
+// runSaaSAuthClient запускает клиент gotd для авторизации пользователя.
+func (b *Bridge) runSaaSAuthClient(userID int64, flow *AuthFlow) {
+        defer func() {
+                b.authFlowsMu.Lock()
+                if b.authFlows[userID] == flow {
+                        delete(b.authFlows, userID)
+                }
+                b.authFlowsMu.Unlock()
+                flow.cancel()
+        }()
+
+        memSession := &MemorySessionStorage{}
+        client := telegram.NewClient(b.cfg.TGAppID, b.cfg.TGAppHash, telegram.Options{
+                SessionStorage: memSession,
+                NoUpdates:      true,
+        })
+
+        err := client.Run(flow.ctx, func(ctx context.Context) error {
+                status, err := client.Auth().Status(ctx)
+                if err != nil {
+                        return err
+                }
+                if status.Authorized {
+                        flow.Status = "authorized"
+                        return nil
+                }
+
+                flowDef := auth.NewFlow(flow, auth.SendCodeOptions{})
+                if err := client.Auth().IfNecessary(ctx, flowDef); err != nil {
+                        return err
+                }
+                flow.Status = "authorized"
+                return nil
+        })
+
+        if err != nil && flow.ctx.Err() == nil {
+                slog.Error("SaaS Auth client failed", "user", userID, "err", err)
+                flow.Status = "error"
+                flow.Error = err.Error()
+        } else if flow.Status == "authorized" {
+                if memSession.Data != nil {
+                        _ = b.repo.SaveMTProtoSession(userID, memSession.Data)
+                        slog.Info("SaaS Auth success, session saved", "user", userID)
+                }
+        }
+}
+
+// handleAPIMTProtoAuthPhone — POST /api/mtproto/auth/phone
+func (b *Bridge) handleAPIMTProtoAuthPhone(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        if r.Method == http.MethodOptions {
+                w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+                w.WriteHeader(http.StatusNoContent)
+                return
+        }
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+        var req struct {
+                Phone string `json:"phone"`
+        }
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid request")
+                return
+        }
+        b.authFlowsMu.Lock()
+        flow, ok := b.authFlows[owner.UserID]
+        b.authFlowsMu.Unlock()
+        if !ok {
+                writeError(w, http.StatusBadRequest, "auth flow not started")
+                return
+        }
+        flow.phoneChan <- req.Phone
+        writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// handleAPIMTProtoAuthCode — POST /api/mtproto/auth/code
+func (b *Bridge) handleAPIMTProtoAuthCode(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        if r.Method == http.MethodOptions {
+                w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+                w.WriteHeader(http.StatusNoContent)
+                return
+        }
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                writeError(w, http.StatusUnauthorized, "unauthorized")
                 return
         }
         var req struct {
                 Code string `json:"code"`
         }
-        if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Code) == "" {
-                writeError(w, http.StatusBadRequest, "code is required")
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid request")
                 return
         }
-        if err := os.WriteFile("/tmp/tg_auth_code", []byte(strings.TrimSpace(req.Code)), 0600); err != nil {
-                writeError(w, http.StatusInternalServerError, "failed to save code")
+        b.authFlowsMu.Lock()
+        flow, ok := b.authFlows[owner.UserID]
+        b.authFlowsMu.Unlock()
+        if !ok {
+                writeError(w, http.StatusBadRequest, "auth flow not started")
                 return
         }
-        slog.Info("API /tg-auth-code: code written to file")
+        flow.codeChan <- req.Code
         writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// handleAPITg2FAPassword — POST /api/tg-2fa-password
-// Принимает 2FA-пароль и записывает в /tmp/tg_2fa_password для fileBasedAuth.
-func (b *Bridge) handleAPITg2FAPassword(w http.ResponseWriter, r *http.Request) {
+// handleAPIMTProtoAuthPassword — POST /api/mtproto/auth/password
+func (b *Bridge) handleAPIMTProtoAuthPassword(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Access-Control-Allow-Origin", "*")
         if r.Method == http.MethodOptions {
                 w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
                 w.WriteHeader(http.StatusNoContent)
                 return
         }
-        if r.Method != http.MethodPost {
-                writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+        owner, err := b.authMiddleware(r)
+        if err != nil {
+                writeError(w, http.StatusUnauthorized, "unauthorized")
                 return
         }
         var req struct {
                 Password string `json:"password"`
         }
-        if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Password) == "" {
-                writeError(w, http.StatusBadRequest, "password is required")
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid request")
                 return
         }
-        if err := os.WriteFile("/tmp/tg_2fa_password", []byte(strings.TrimSpace(req.Password)), 0600); err != nil {
-                writeError(w, http.StatusInternalServerError, "failed to save password")
+        b.authFlowsMu.Lock()
+        flow, ok := b.authFlows[owner.UserID]
+        b.authFlowsMu.Unlock()
+        if !ok {
+                writeError(w, http.StatusBadRequest, "auth flow not started")
                 return
         }
-        slog.Info("API /tg-2fa-password: password written to file")
+        flow.passwordChan <- req.Password
         writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

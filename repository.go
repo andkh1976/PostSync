@@ -97,6 +97,10 @@ type Repository interface {
         UpsertMaxKnownChat(chat MaxKnownChat)
         ListMaxKnownChats() []MaxKnownChat
 
+        // MTProto SaaS Sessions
+        GetMTProtoSession(userID int64) ([]byte, error)
+        SaveMTProtoSession(userID int64, sessionData []byte) error
+
         Close() error
 }
 

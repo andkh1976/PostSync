@@ -489,6 +489,22 @@ func (r *pgRepo) ListMaxKnownChats() []MaxKnownChat {
         return chats
 }
 
+func (r *pgRepo) GetMTProtoSession(userID int64) ([]byte, error) {
+        var data []byte
+        err := r.db.QueryRow("SELECT session_data FROM user_mtproto_sessions WHERE user_id = $1", userID).Scan(&data)
+        return data, err
+}
+
+func (r *pgRepo) SaveMTProtoSession(userID int64, sessionData []byte) error {
+        _, err := r.db.Exec(
+                `INSERT INTO user_mtproto_sessions (user_id, session_data, updated_at) 
+                 VALUES ($1, $2, $3) 
+                 ON CONFLICT(user_id) DO UPDATE SET session_data=EXCLUDED.session_data, updated_at=EXCLUDED.updated_at`,
+                userID, sessionData, time.Now().Unix(),
+        )
+        return err
+}
+
 func (r *pgRepo) Close() error {
         return r.db.Close()
 }

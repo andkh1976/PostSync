@@ -528,6 +528,24 @@ func (r *sqliteRepo) ListMaxKnownChats() []MaxKnownChat {
         return chats
 }
 
+func (r *sqliteRepo) GetMTProtoSession(userID int64) ([]byte, error) {
+        var data []byte
+        err := r.db.QueryRow("SELECT session_data FROM user_mtproto_sessions WHERE user_id = ?", userID).Scan(&data)
+        return data, err
+}
+
+func (r *sqliteRepo) SaveMTProtoSession(userID int64, sessionData []byte) error {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        _, err := r.db.Exec(
+                `INSERT INTO user_mtproto_sessions (user_id, session_data, updated_at) 
+                 VALUES (?, ?, ?) 
+                 ON CONFLICT(user_id) DO UPDATE SET session_data=excluded.session_data, updated_at=excluded.updated_at`,
+                userID, sessionData, time.Now().Unix(),
+        )
+        return err
+}
+
 func (r *sqliteRepo) Close() error {
         return r.db.Close()
 }
