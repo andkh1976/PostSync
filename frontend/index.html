@@ -527,7 +527,7 @@
 <div id="paywall-overlay" style="display: none;">
   <h2>Доступ закрыт</h2>
   <p>Для использования всех функций этого приложения требуется активная подписка. Пожалуйста, обратитесь к администратору для получения доступа.</p>
-  <button class="btn btn-primary" style="max-width:300px" onclick="if(window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.openTelegramLink('https://t.me/PstSncBot'); } else { window.open('https://t.me/PstSncBot'); }">Связаться с администратором</button>
+  <button class="btn btn-primary" id="btn-paywall-contact" style="max-width:300px" onclick="if(window.Telegram && window.Telegram.WebApp) { window.Telegram.WebApp.openTelegramLink('https://t.me/PstSncBot'); } else { window.open('https://t.me/PstSncBot'); }">Связаться с администратором</button>
 </div>
 
 
@@ -701,6 +701,18 @@
       if (!p.has_subscription) {
         document.querySelectorAll('.card').forEach(c => c.style.display = 'none');
         document.getElementById('paywall-overlay').style.display = 'flex';
+        
+        if (p.admin_contact) {
+          const btn = document.getElementById('btn-paywall-contact');
+          const adminUrl = 'https://t.me/' + p.admin_contact;
+          btn.onclick = () => {
+            if (window.Telegram && window.Telegram.WebApp) {
+              window.Telegram.WebApp.openTelegramLink(adminUrl);
+            } else {
+              window.open(adminUrl);
+            }
+          };
+        }
         // Мы скрываем карточки, поэтому можно не рендерить интерфейс профиля
       }
 

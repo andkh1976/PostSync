@@ -115,6 +115,7 @@ type UserProfile struct {
         FirstName       string     `json:"first_name"`
         SubscriptionEnd *time.Time `json:"subscription_end,omitempty"`
         HasSubscription bool       `json:"has_subscription"`
+        AdminContact    string     `json:"admin_contact,omitempty"`
 }
 
 // SyncTask — задача ретроспективного скачивания постов из TG-канала в MAX.

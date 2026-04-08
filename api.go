@@ -10,6 +10,7 @@ import (
         "log/slog"
         "net/http"
         "net/url"
+        "os"
         "sort"
         "strings"
         "time"
@@ -517,6 +518,14 @@ func (b *Bridge) handleAPIProfile(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        adminContact := os.Getenv("ADMIN_USERNAME")
+        if adminContact == "" {
+                adminContact = "PstSncBot" // fallback bot
+        }
+        adminContact = strings.TrimPrefix(adminContact, "@")
+
+        isAdmin := b.cfg.AdminChatID != 0 && owner.UserID == b.cfg.AdminChatID
+
         profile, err := b.repo.GetUserProfile(owner.UserID)
         if err != nil {
                 // Пользователь может не иметь записи в users (новый), возвращаем минимальный профиль
@@ -524,10 +533,16 @@ func (b *Bridge) handleAPIProfile(w http.ResponseWriter, r *http.Request) {
                 writeJSON(w, http.StatusOK, UserProfile{
                         UserID:          owner.UserID,
                         Platform:        owner.Platform,
-                        HasSubscription: false,
+                        HasSubscription: isAdmin,
+                        AdminContact:    adminContact,
                 })
                 return
         }
+
+        if isAdmin {
+                profile.HasSubscription = true
+        }
+        profile.AdminContact = adminContact
 
         slog.Info("API /profile", "owner", owner.UserID, "platform", owner.Platform, "hasSub", profile.HasSubscription)
         writeJSON(w, http.StatusOK, profile)
