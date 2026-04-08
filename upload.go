@@ -283,6 +283,21 @@ func (b *Bridge) customUploadToMax(ctx context.Context, uploadType maxschemes.Up
                 slog.Info("MAX upload ok", "fileId", cdnResult.FileID)
                 return &maxschemes.UploadedInfo{Token: cdnResult.Token, FileID: cdnResult.FileID}, nil
         }
+
+        // Фолбэк парсинг для фото: {"photos": {"<id>": {"token": "..."}}}
+        var cdnPhotoResult struct {
+                Photos map[string]struct {
+                        Token string `json:"token"`
+                } `json:"photos"`
+        }
+        if err := json.Unmarshal(cdnBody, &cdnPhotoResult); err == nil && len(cdnPhotoResult.Photos) > 0 {
+                for id, p := range cdnPhotoResult.Photos {
+                        if p.Token != "" {
+                                slog.Info("MAX upload ok (photo array)", "photoId", id)
+                                return &maxschemes.UploadedInfo{Token: p.Token}, nil
+                        }
+                }
+        }
         
         // Если CDN не вернул JSON токен, но вернул HTTP 200, и у нас есть токен из Шага 1:
         if endpoint.Token != "" {
