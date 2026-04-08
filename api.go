@@ -288,6 +288,11 @@ func (b *Bridge) handleAPISyncStart(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        if !b.checkAccess(owner.UserID) {
+                writeError(w, http.StatusForbidden, "forbidden")
+                return
+        }
+
         var req apiSyncStartRequest
         if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
                 writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -368,6 +373,11 @@ func (b *Bridge) handleAPIHistoryClear(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        if !b.checkAccess(owner.UserID) {
+                writeError(w, http.StatusForbidden, "forbidden")
+                return
+        }
+
         var req apiHistoryClearRequest
         if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
                 writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -421,6 +431,11 @@ func (b *Bridge) handleAPISettings(w http.ResponseWriter, r *http.Request) {
         if err != nil {
                 slog.Warn("API /settings auth failed", "err", err, "ip", r.RemoteAddr)
                 writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        if !b.checkAccess(owner.UserID) {
+                writeError(w, http.StatusForbidden, "forbidden")
                 return
         }
 
@@ -591,6 +606,11 @@ func (b *Bridge) handleAPITaskCancel(w http.ResponseWriter, r *http.Request) {
                 writeError(w, http.StatusUnauthorized, "unauthorized")
                 return
         }
+
+        if !b.checkAccess(owner.UserID) {
+                writeError(w, http.StatusForbidden, "forbidden")
+                return
+        }
         var req struct {
                 TaskID int64 `json:"task_id"`
         }
@@ -655,6 +675,11 @@ func (b *Bridge) handleAPIChannelsPair(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        if !b.checkAccess(owner.UserID) {
+                writeError(w, http.StatusForbidden, "forbidden")
+                return
+        }
+
         var req apiPairRequest
         if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
                 writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -712,6 +737,11 @@ func (b *Bridge) handleAPIChannelsDelete(w http.ResponseWriter, r *http.Request)
         if err != nil {
                 slog.Warn("API DELETE /channels auth failed", "err", err, "ip", r.RemoteAddr)
                 writeError(w, http.StatusUnauthorized, "unauthorized")
+                return
+        }
+
+        if !b.checkAccess(owner.UserID) {
+                writeError(w, http.StatusForbidden, "forbidden")
                 return
         }
 
