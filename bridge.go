@@ -233,18 +233,20 @@ func (b *Bridge) notifyAdmin(ctx context.Context, text string) {
         }
 }
 
-// isUserAllowed проверяет, есть ли tgUserID в белом списке.
-// Если AllowedUsers пуст — доступ разрешён всем.
+// isUserAllowed проверяет доступ пользователя (SaaS подписка).
+// Если AdminChatID совпадает — доступ всегда есть.
 func (b *Bridge) isUserAllowed(tgUserID int64) bool {
-        if len(b.cfg.AllowedUsers) == 0 {
+        // Администратор имеет полный доступ всегда
+        if b.cfg.AdminChatID != 0 && tgUserID == b.cfg.AdminChatID {
                 return true
         }
-        for _, id := range b.cfg.AllowedUsers {
-                if id == tgUserID {
-                        return true
-                }
+
+        // Проверяем подписку в БД
+        profile, err := b.repo.GetUserProfile(tgUserID)
+        if err != nil {
+                return false
         }
-        return false
+        return profile.HasSubscription
 }
 
 // checkUserAllowed проверяет доступ пользователя и отправляет сообщение об отказе если нужно.
@@ -279,15 +281,17 @@ func (b *Bridge) isCrosspostOwner(maxChatID, userID int64) bool {
 // Sprint 4: всегда возвращает true (полный доступ).
 // Реальная логика проверки даты закомментирована — включить одной строкой когда нужно.
 func (b *Bridge) checkAccess(userID int64) bool {
-        // DEPRECATED (Sprint 4): реальная проверка подписки — раскомментировать для включения:
-        // profile, err := b.repo.GetUserProfile(userID)
-        // if err != nil {
-        //         slog.Warn("checkAccess: failed to get user profile", "userID", userID, "err", err)
-        //         return false
-        // }
-        // return profile.HasSubscription
+        // Администратор имеет полный доступ всегда
+        if b.cfg.AdminChatID != 0 && userID == b.cfg.AdminChatID {
+                return true
+        }
 
-        return true // временно: полный доступ для всех
+        profile, err := b.repo.GetUserProfile(userID)
+        if err != nil {
+                slog.Warn("checkAccess: failed to get user profile", "userID", userID, "err", err)
+                return false
+        }
+        return profile.HasSubscription
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

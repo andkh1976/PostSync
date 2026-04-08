@@ -140,7 +140,65 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
                         // Запоминаем юзера при личном сообщении
                         if msg.Chat.Type == "private" && msg.From != nil {
+                                profile, err := b.repo.GetUserProfile(msg.From.ID)
+                                isNew := err != nil || profile.UserID == 0
                                 b.repo.TouchUser(msg.From.ID, "tg", msg.From.UserName, msg.From.FirstName)
+                                if isNew && b.cfg.AdminChatID != 0 {
+                                        b.notifyAdmin(ctx, fmt.Sprintf("🔔 Новый пользователь зарегистрировался!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать подписку на 30 дней, отправьте:\n<code>/sub_grant %d 30</code>", msg.From.FirstName, msg.From.UserName, msg.From.ID, msg.From.ID))
+                                }
+                        }
+
+                        // Админ-команды
+                        if msg.From != nil && msg.From.ID == b.cfg.AdminChatID && msg.Chat.Type == "private" && strings.HasPrefix(text, "/") {
+                                if strings.HasPrefix(text, "/users") {
+                                        ids, err := b.repo.ListUsers("tg")
+                                        if err != nil {
+                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Ошибка БД: "+err.Error()))
+                                                continue
+                                        }
+                                        if len(ids) == 0 {
+                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Пользователей нет."))
+                                                continue
+                                        }
+                                        msgText := "👥 Пользователи:\n"
+                                        for _, id := range ids {
+                                                p, err := b.repo.GetUserProfile(id)
+                                                if err != nil {
+                                                        continue
+                                                }
+                                                sub := "❌ Истёк"
+                                                if p.HasSubscription {
+                                                        sub = "✅ До " + p.SubscriptionEnd.Format("02.01.2006")
+                                                }
+                                                msgText += fmt.Sprintf("• %s (@%s) | ID: <code>%d</code> | %s\n", p.FirstName, p.Username, p.UserID, sub)
+                                        }
+                                        m := tgbotapi.NewMessage(msg.Chat.ID, msgText)
+                                        m.ParseMode = "HTML"
+                                        b.tgBot.Send(m)
+                                        continue
+                                }
+                                if strings.HasPrefix(text, "/sub_grant") {
+                                        parts := strings.Fields(text)
+                                        if len(parts) != 3 {
+                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Формат: /sub_grant <ID> <дни>"))
+                                                continue
+                                        }
+                                        uid, _ := strconv.ParseInt(parts[1], 10, 64)
+                                        days, _ := strconv.Atoi(parts[2])
+                                        if uid == 0 || days <= 0 {
+                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Неверные параметры! ID и дни должны быть больше 0."))
+                                                continue
+                                        }
+                                        if err := b.repo.GrantSubscription(uid, days); err != nil {
+                                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Ошибка БД: "+err.Error()))
+                                                continue
+                                        }
+                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Пользователю %d добавлено %d дней подписки.", uid, days)))
+                                        // Опционально уведомить самого юзера
+                                        m := tgbotapi.NewMessage(uid, fmt.Sprintf("🎉 Администратор выдал вам подписку на %d дней! Спасибо, что с нами.", days))
+                                        b.tgBot.Send(m) // может упасть если он заблокировал, игнорим ошибку
+                                        continue
+                                }
                         }
 
                         // Проверка белого списка ALLOWED_USERS для личных сообщений

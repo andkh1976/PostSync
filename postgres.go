@@ -505,6 +505,14 @@ func (r *pgRepo) SaveMTProtoSession(userID int64, sessionData []byte) error {
         return err
 }
 
+func (r *pgRepo) GrantSubscription(userID int64, days int) error {
+        _, err := r.db.Exec(`UPDATE users SET subscription_end = CASE 
+                WHEN subscription_end IS NULL OR subscription_end < NOW() THEN NOW() + $2 * INTERVAL '1 day'
+                ELSE subscription_end + $2 * INTERVAL '1 day' END 
+                WHERE user_id = $1`, userID, days)
+        return err
+}
+
 func (r *pgRepo) Close() error {
         return r.db.Close()
 }

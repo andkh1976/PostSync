@@ -546,6 +546,17 @@ func (r *sqliteRepo) SaveMTProtoSession(userID int64, sessionData []byte) error 
         return err
 }
 
+func (r *sqliteRepo) GrantSubscription(userID int64, days int) error {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        // Assuming subscription_end is stored as ISO8601 string in SQLite
+        _, err := r.db.Exec(`UPDATE users SET subscription_end = CASE 
+                WHEN subscription_end IS NULL OR subscription_end = '' OR datetime(subscription_end) < datetime('now') THEN strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '+' || ? || ' days')
+                ELSE strftime('%Y-%m-%dT%H:%M:%SZ', subscription_end, '+' || ? || ' days') END 
+                WHERE user_id = ?`, days, days, userID)
+        return err
+}
+
 func (r *sqliteRepo) Close() error {
         return r.db.Close()
 }

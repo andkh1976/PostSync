@@ -101,6 +101,9 @@ type Repository interface {
         GetMTProtoSession(userID int64) ([]byte, error)
         SaveMTProtoSession(userID int64, sessionData []byte) error
 
+        // Управление подписками
+        GrantSubscription(userID int64, days int) error
+
         Close() error
 }
 
