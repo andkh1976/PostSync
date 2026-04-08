@@ -519,10 +519,11 @@ func (b *Bridge) handleAPIProfile(w http.ResponseWriter, r *http.Request) {
         }
 
         adminContact := os.Getenv("ADMIN_USERNAME")
-        if adminContact == "" {
-                adminContact = "PstSncBot" // fallback bot
+        if adminContact != "" {
+                adminContact = strings.TrimPrefix(adminContact, "@")
+        } else if b.tgBot != nil {
+                adminContact = b.tgBot.Self.UserName
         }
-        adminContact = strings.TrimPrefix(adminContact, "@")
 
         isAdmin := b.cfg.AdminChatID != 0 && owner.UserID == b.cfg.AdminChatID
 
