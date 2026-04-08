@@ -4,6 +4,7 @@ import (
         "context"
         "errors"
         "fmt"
+        "html"
         "log/slog"
         "path/filepath"
         "strconv"
@@ -143,8 +144,19 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                 profile, err := b.repo.GetUserProfile(msg.From.ID)
                                 isNew := err != nil || profile.UserID == 0
                                 b.repo.TouchUser(msg.From.ID, "tg", msg.From.UserName, msg.From.FirstName)
+                                
+                                // Уведомляем админа только при первичной регистрации
                                 if isNew && b.cfg.AdminChatID != 0 {
-                                        b.notifyAdmin(ctx, fmt.Sprintf("🔔 Новый пользователь зарегистрировался!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать подписку на 30 дней, отправьте:\n<code>/sub_grant %d 30</code>", msg.From.FirstName, msg.From.UserName, msg.From.ID, msg.From.ID))
+                                        safeName := html.EscapeString(msg.From.FirstName)
+                                        safeUser := html.EscapeString(msg.From.UserName)
+                                        b.notifyAdmin(ctx, fmt.Sprintf("🔔 Новый пользователь зарегистрировался!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать подписку на 30 дней, отправьте:\n<code>/sub_grant %d 30</code>", safeName, safeUser, msg.From.ID, msg.From.ID))
+                                }
+
+                                // Если пользователь пишет /start, но у него нет подписки — уведомим админа (даже если он не "новый")
+                                if !isNew && !profile.HasSubscription && msg.From.ID != b.cfg.AdminChatID && strings.HasPrefix(text, "/start") {
+                                        safeName := html.EscapeString(msg.From.FirstName)
+                                        safeUser := html.EscapeString(msg.From.UserName)
+                                        b.notifyAdmin(ctx, fmt.Sprintf("👋 Пользователь пытается войти!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать доступ, отправьте:\n<code>/sub_grant %d 30</code>", safeName, safeUser, msg.From.ID, msg.From.ID))
                                 }
                         }
 
@@ -203,7 +215,11 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 
                         // Проверка белого списка ALLOWED_USERS для личных сообщений
                         if msg.Chat.Type == "private" && msg.From != nil && !b.isUserAllowed(msg.From.ID) {
-                                b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Доступ запрещён."))
+                                if strings.HasPrefix(text, "/start") {
+                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "👋 Добро пожаловать! Ваша заявка отправлена администратору. Ожидайте выдачи доступа."))
+                                } else {
+                                        b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Доступ запрещён. У вас нет активной подписки."))
+                                }
                                 continue
                         }
 
