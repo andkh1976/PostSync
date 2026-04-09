@@ -1,11 +1,11 @@
 package main
 
 import (
-        "context"
-        "errors"
+	"context"
+	"errors"
 
-        "github.com/gotd/td/telegram/auth"
-        "github.com/gotd/td/tg"
+	"github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/tg"
 )
 
 // AuthFlow управляет процессом авторизации MTProto для конкретного пользователя.

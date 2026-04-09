@@ -117,7 +117,7 @@ func (b *Bridge) resolveChannelPeer(ctx context.Context, api *tg.Client, tgChatI
 
 	// Получаем диалоги порциями, ищем нужный канал
 	var offsetPeer tg.InputPeerClass = &tg.InputPeerEmpty{}
-	
+
 	result, err := api.MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
 		Limit:      100,
 		OffsetPeer: offsetPeer,
@@ -441,4 +441,3 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, api *tg.Client, msg
 	slog.Debug("Sync worker: message forwarded", "tgMsgID", msg.ID, "maxMsgID", mid)
 	return nil
 }
-

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
 	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // parseCrosspostReplacements парсит JSON из БД в структуру.

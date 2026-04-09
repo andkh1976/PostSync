@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
+	"testing"
 )
 
 func TestTgGroupDetection(t *testing.T) {
@@ -97,16 +97,16 @@ func TestMaxUserAdminSearch(t *testing.T) {
 }
 
 func TestMaxUserAdminSearch_NilSlices(t *testing.T) {
-    // Ensuring specific slice handling behaves identically
-    resOne := isMaxUserAdmin(nil, 50)
-    if resOne {
-        t.Fatal("nil array traversal should fail gracefully")
-    }
-    
-    emptySlice := make([]maxschemes.ChatMember, 0)
-    if isMaxUserAdmin(emptySlice, 50) {
-        t.Fatal("empty array traversal should fail gracefully")
-    }
+	// Ensuring specific slice handling behaves identically
+	resOne := isMaxUserAdmin(nil, 50)
+	if resOne {
+		t.Fatal("nil array traversal should fail gracefully")
+	}
+
+	emptySlice := make([]maxschemes.ChatMember, 0)
+	if isMaxUserAdmin(emptySlice, 50) {
+		t.Fatal("empty array traversal should fail gracefully")
+	}
 }
 
 func TestTgChannelCategorization(t *testing.T) {
