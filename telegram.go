@@ -184,9 +184,13 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
                                                 if err != nil {
                                                         continue
                                                 }
-                                                sub := "❌ Истёк"
-                                                if p.HasSubscription {
+                                                var sub string
+                                                if p.UserID == b.cfg.AdminChatID {
+                                                        sub = "👑 Админ"
+                                                } else if p.HasSubscription {
                                                         sub = "✅ До " + p.SubscriptionEnd.Format("02.01.2006")
+                                                } else {
+                                                        sub = "❌ Истёк"
                                                 }
                                                 msgText += fmt.Sprintf("• %s (@%s) | ID: <code>%d</code> | %s\n", p.FirstName, p.Username, p.UserID, sub)
                                         }
