@@ -111,8 +111,8 @@ func (b *Bridge) processQueueTg2Max(ctx context.Context, item QueueItem, now tim
 	mid, err := b.sendMaxDirectFormatted(ctx, item.DstChatID, item.Text, item.AttType, item.AttToken, item.ReplyTo, item.Format)
 	if err != nil {
 		errStr := err.Error()
-		// Permanent errors — дропаем
-		if strings.Contains(errStr, "403") || strings.Contains(errStr, "404") || strings.Contains(errStr, "chat.denied") {
+		// Permanent errors — дропаем (вкл. 400 validation error, кроме attachment.not.ready)
+		if (strings.Contains(errStr, "400") && !strings.Contains(errStr, "attachment.not.ready")) || strings.Contains(errStr, "403") || strings.Contains(errStr, "404") || strings.Contains(errStr, "chat.denied") {
 			slog.Warn("queue item dropped (permanent error)", "id", item.ID, "err", errStr)
 			b.repo.DeleteFromQueue(item.ID)
 			return

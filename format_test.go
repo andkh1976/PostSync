@@ -367,3 +367,63 @@ func TestFormatMaxCrosspostCaption(t *testing.T) {
 		})
 	}
 }
+
+func TestSplitText(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		maxLen   int
+		expected []string
+	}{
+		{
+			name:     "no split needed",
+			text:     "hello world",
+			maxLen:   20,
+			expected: []string{"hello world"},
+		},
+		{
+			name:     "split by space",
+			text:     "hello world how are you",
+			maxLen:   10,
+			expected: []string{"hello", "world how", "are you"},
+		},
+		{
+			name:     "split by newline",
+			text:     "hello\nworld\nhow\nare\nyou",
+			maxLen:   15,
+			expected: []string{"hello\nworld\nhow", "are\nyou"},
+		},
+		{
+			name:     "exact split without spaces",
+			text:     "1234567890abcdefghij",
+			maxLen:   10,
+			expected: []string{"1234567890", "abcdefghij"},
+		},
+		{
+			name:     "multibyte characters",
+			text:     "привет мир как дела",
+			maxLen:   10,
+			expected: []string{"привет мир", "как дела"},
+		},
+		{
+			name:     "empty string",
+			text:     "",
+			maxLen:   10,
+			expected: []string{""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := splitText(tt.text, tt.maxLen)
+			if len(got) != len(tt.expected) {
+				t.Fatalf("splitText() returned %d chunks, want %d", len(got), len(tt.expected))
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("chunk [%d] = %q, want %q", i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}

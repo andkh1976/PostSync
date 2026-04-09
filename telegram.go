@@ -840,33 +840,48 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 	var mid string
 	var sendErr error
 
-	if mediaAttType != "" {
-		slog.Info("TG→MAX sending direct", "type", mediaAttType, "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
-		var format string
-		if hasFormatting {
-			format = "markdown"
+	var format string
+	if hasFormatting {
+		format = "markdown"
+	}
+
+	chunks := splitText(mdCaption, 4000)
+	for i, chunk := range chunks {
+		attType := ""
+		attToken := ""
+		
+		if i == 0 && mediaAttType != "" {
+			attType = mediaAttType
+			attToken = mediaToken
+			slog.Info("TG→MAX sending direct", "type", mediaAttType, "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
+		} else if i > 0 {
+			slog.Info("TG→MAX sending chunk", "chunk", i+1, "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
+		} else {
+			slog.Info("TG→MAX sending", "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
 		}
-		mid, sendErr = b.sendMaxDirectFormatted(ctx, maxChatID, mdCaption, mediaAttType, mediaToken, replyTo, format)
-	} else {
-		var format string
-		if hasFormatting {
-			format = "markdown"
+
+		chunkMid, err := b.sendMaxDirectFormatted(ctx, maxChatID, chunk, attType, attToken, replyTo, format)
+		if err != nil {
+			sendErr = err
+			// Останавливаем отправку последующих частей
+			errStr := err.Error()
+			isPermanent := (strings.Contains(errStr, "400") && !strings.Contains(errStr, "attachment.not.ready")) || 
+			               strings.Contains(errStr, "403") || 
+			               strings.Contains(errStr, "404") || 
+			               strings.Contains(errStr, "chat.denied")
+			if !isPermanent {
+				b.enqueueTg2Max(msg.Chat.ID, msg.MessageID, maxChatID, chunk, attType, attToken, replyTo, format)
+			}
+			break
 		}
-		slog.Info("TG→MAX sending", "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
-		mid, sendErr = b.sendMaxDirectFormatted(ctx, maxChatID, mdCaption, "", "", replyTo, format)
+		if i == 0 {
+			mid = chunkMid
+		}
 	}
 
 	if sendErr != nil {
 		errStr := sendErr.Error()
 		slog.Error("TG→MAX send failed", "err", errStr, "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
-		// 403/404 — permanent error, не ретраим
-		if !strings.Contains(errStr, "403") && !strings.Contains(errStr, "404") && !strings.Contains(errStr, "chat.denied") {
-			var format string
-			if hasFormatting {
-				format = "markdown"
-			}
-			b.enqueueTg2Max(msg.Chat.ID, msg.MessageID, maxChatID, mdCaption, mediaAttType, mediaToken, replyTo, format)
-		}
 		if b.cbFail(maxChatID) {
 			sendError("MAX API недоступен. Сообщения в очереди, будут доставлены автоматически.")
 		}

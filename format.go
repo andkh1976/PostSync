@@ -177,3 +177,49 @@ func fileNameFromURL(rawURL string) string {
 	}
 	return "file"
 }
+
+// splitText разбивает строку на части, не превышающие maxLen символов (рун).
+// Старается разбивать по переносу строки или пробелу.
+func splitText(text string, maxLen int) []string {
+	if len([]rune(text)) <= maxLen {
+		return []string{text}
+	}
+
+	runes := []rune(text)
+	var chunks []string
+
+	for len(runes) > 0 {
+		if len(runes) <= maxLen {
+			chunks = append(chunks, string(runes))
+			break
+		}
+
+		splitIdx := -1
+		for i := maxLen; i >= 0; i-- {
+			if runes[i] == '\n' {
+				splitIdx = i
+				break
+			}
+		}
+
+		if splitIdx == -1 {
+			for i := maxLen; i >= 0; i-- {
+				if runes[i] == ' ' {
+					splitIdx = i
+					break
+				}
+			}
+		}
+
+		if splitIdx == -1 || splitIdx == 0 {
+			splitIdx = maxLen
+			chunks = append(chunks, string(runes[:splitIdx]))
+			runes = runes[splitIdx:]
+		} else {
+			chunks = append(chunks, string(runes[:splitIdx]))
+			runes = runes[splitIdx+1:]
+		}
+	}
+
+	return chunks
+}
