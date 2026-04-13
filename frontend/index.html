@@ -702,17 +702,28 @@
         document.querySelectorAll('.card').forEach(c => c.style.display = 'none');
         document.getElementById('paywall-overlay').style.display = 'flex';
         
-        if (p.admin_contact) {
-          const btn = document.getElementById('btn-paywall-contact');
-          const adminUrl = 'https://t.me/' + p.admin_contact;
-          btn.onclick = () => {
-            if (window.Telegram && window.Telegram.WebApp) {
-              window.Telegram.WebApp.openTelegramLink(adminUrl);
-            } else {
-              window.open(adminUrl);
-            }
-          };
-        }
+        const btn = document.getElementById('btn-paywall-contact');
+        btn.onclick = async () => {
+          try {
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = 'Отправка...';
+            
+            await apiFetch('/api/request-access', { method: 'POST' });
+            
+            btn.textContent = 'Запрос отправлен, ожидайте...';
+            btn.style.background = 'var(--success)';
+            
+            setTimeout(() => {
+              if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.close();
+              }
+            }, 2000);
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Ошибка: попробуйте позже';
+          }
+        };
         // Мы скрываем карточки, поэтому можно не рендерить интерфейс профиля
       }
 

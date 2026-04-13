@@ -812,6 +812,48 @@ func (b *Bridge) handleAPIChannelsDelete(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// handleAPIRequestAccess — POST /api/request-access
+// Отправляет администратору сообщение с просьбой выдать доступ автобаном.
+func (b *Bridge) handleAPIRequestAccess(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	owner, err := b.authMiddleware(r)
+	if err != nil {
+		slog.Warn("API /request-access auth failed", "err", err, "ip", r.RemoteAddr)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	profile, err := b.repo.GetUserProfile(owner.UserID)
+	var safeName string
+	var safeUser string
+	if err == nil {
+		safeName = strings.ReplaceAll(profile.FirstName+" "+profile.LastName, "<", "&lt;")
+		safeUser = strings.ReplaceAll(profile.Username, "<", "&lt;")
+	} else {
+		safeName = "Unknown"
+		safeUser = "Unknown"
+	}
+
+	// Отправляем уведомление администратору
+	msg := fmt.Sprintf("👋 Пользователь пытается войти!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать доступ, отправьте:\n<code>/sub_grant %d 30</code>", 
+		strings.TrimSpace(safeName), safeUser, owner.UserID, owner.UserID)
+
+	b.notifyAdmin(r.Context(), msg)
+	slog.Info("API /request-access sent", "owner", owner.UserID, "platform", owner.Platform)
+	
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
 // handleAPIReplacements — GET /api/replacements и POST /api/replacements (Sprint 4 Correction)
 // GET: возвращает список автозамен для связки. POST: добавляет новую автозамену.
 // Параметр: ?max_chat_id=<int64>
@@ -916,6 +958,7 @@ func (b *Bridge) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tasks", b.handleAPITasks)
 	mux.HandleFunc("/api/tasks/cancel", b.handleAPITaskCancel)
 	mux.HandleFunc("/api/tasks/history", b.handleAPITasksClearHistory)
+	mux.HandleFunc("/api/request-access", b.handleAPIRequestAccess)
 	mux.HandleFunc("/api/config", b.handleAPIConfig)
 	// Sprint 4 Correction: Mini App управляет связками напрямую через API
 	mux.HandleFunc("/api/channels/pair", b.handleAPIChannelsPair)
