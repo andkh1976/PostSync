@@ -441,3 +441,71 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, api *tg.Client, msg
 	slog.Debug("Sync worker: message forwarded", "tgMsgID", msg.ID, "maxMsgID", mid)
 	return nil
 }
+
+// CheckHistoryDataExists выполняет предварительную проверку наличия сообщений за указанный период.
+func (b *Bridge) CheckHistoryDataExists(ctx context.Context, userID int64, tgChatID int64, startUnix, endUnix int) (bool, error) {
+	sessionBytes, err := b.repo.GetMTProtoSession(userID)
+	if err != nil || len(sessionBytes) == 0 {
+		return false, fmt.Errorf("no MTProto session found for user %d", userID)
+	}
+
+	memSession := &MemorySessionStorage{Data: sessionBytes}
+	client := telegram.NewClient(b.cfg.TGAppID, b.cfg.TGAppHash, telegram.Options{
+		SessionStorage: memSession,
+		NoUpdates:      true,
+	})
+
+	var hasData bool
+	err = client.Run(ctx, func(ctx context.Context) error {
+		status, err := client.Auth().Status(ctx)
+		if err != nil {
+			return fmt.Errorf("auth status check: %w", err)
+		}
+		if !status.Authorized {
+			return fmt.Errorf("user %d session is not authorized", userID)
+		}
+
+		api := client.API()
+		peer, err := b.resolveChannelPeer(ctx, api, tgChatID)
+		if err != nil {
+			return fmt.Errorf("resolve peer: %w", err)
+		}
+
+		history, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
+			Peer:       peer,
+			OffsetID:   0,
+			OffsetDate: endUnix, // Ищем начиная с конца периода назад
+			Limit:      10,      // Берем с запасом на сервис-сообщения
+			AddOffset:  0,
+		})
+		if err != nil {
+			return fmt.Errorf("MessagesGetHistory: %w", err)
+		}
+
+		var msgs []tg.MessageClass
+		switch h := history.(type) {
+		case *tg.MessagesMessages:
+			msgs = h.Messages
+		case *tg.MessagesMessagesSlice:
+			msgs = h.Messages
+		case *tg.MessagesChannelMessages:
+			msgs = h.Messages
+		default:
+			return fmt.Errorf("unexpected history type: %T", history)
+		}
+
+		for _, msgClass := range msgs {
+			if msg, ok := msgClass.(*tg.Message); ok {
+				// Важно: сообщение возвращается самое свежее до endUnix.
+				// Если его дата >= startUnix, значит в этом периоде есть данные.
+				if msg.Date >= startUnix && msg.Date <= endUnix {
+					hasData = true
+				}
+				break
+			}
+		}
+		return nil
+	})
+
+	return hasData, err
+}

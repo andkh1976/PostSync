@@ -330,12 +330,26 @@ func (b *Bridge) handleAPISyncStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	taskEndDate := endDate.Add(24*time.Hour - time.Second)
+
+	// Предварительная проверка наличия данных
+	hasData, err := b.CheckHistoryDataExists(r.Context(), owner.UserID, req.TgChatID, int(startDate.Unix()), int(taskEndDate.Unix()))
+	if err != nil {
+		slog.Error("API /sync/start precheck failed", "err", err, "owner", owner.UserID)
+		writeError(w, http.StatusInternalServerError, "Ошибка проверки наличия данных")
+		return
+	}
+	if !hasData {
+		writeError(w, http.StatusBadRequest, "Нет данных для синхронизации за указанный период")
+		return
+	}
+
 	task := SyncTask{
 		UserID:    owner.UserID,
 		TgChatID:  req.TgChatID,
 		MaxChatID: req.MaxChatID,
 		StartDate: startDate,
-		EndDate:   endDate.Add(24*time.Hour - time.Second), // включаем конец дня
+		EndDate:   taskEndDate,
 	}
 	id, err := b.repo.CreateSyncTask(task)
 	if err != nil {
