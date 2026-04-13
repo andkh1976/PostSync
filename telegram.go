@@ -221,6 +221,27 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 					b.tgBot.Send(m) // может упасть если он заблокировал, игнорим ошибку
 					continue
 				}
+				if strings.HasPrefix(text, "/sub_revoke") {
+					parts := strings.Fields(text)
+					if len(parts) != 2 {
+						b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Формат: /sub_revoke <ID>"))
+						continue
+					}
+					uid, _ := strconv.ParseInt(parts[1], 10, 64)
+					if uid == 0 {
+						b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Неверные параметры! Некорректный ID."))
+						continue
+					}
+					if err := b.repo.RevokeSubscription(uid); err != nil {
+						b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, "Ошибка БД: "+err.Error()))
+						continue
+					}
+					b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Подписка аннулирована для пользователя %d.", uid)))
+					
+					m := tgbotapi.NewMessage(uid, "⚠️ Ваш доступ приостановлен. Для выяснения причин свяжитесь с администратором.")
+					b.tgBot.Send(m)
+					continue
+				}
 			}
 
 			// Проверка белого списка ALLOWED_USERS для личных сообщений

@@ -534,6 +534,13 @@ func (r *pgRepo) GrantSubscription(userID int64, days int) error {
 	return err
 }
 
+func (r *pgRepo) RevokeSubscription(userID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, err := r.db.Exec(`UPDATE users SET subscription_end = NOW() - INTERVAL '1 hour' WHERE user_id = $1`, userID)
+	return err
+}
+
 func (r *pgRepo) Close() error {
 	return r.db.Close()
 }

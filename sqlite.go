@@ -586,6 +586,13 @@ func (r *sqliteRepo) GrantSubscription(userID int64, days int) error {
 	return err
 }
 
+func (r *sqliteRepo) RevokeSubscription(userID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, err := r.db.Exec(`UPDATE users SET subscription_end = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 hours') WHERE user_id = ?`, userID)
+	return err
+}
+
 func (r *sqliteRepo) Close() error {
 	return r.db.Close()
 }

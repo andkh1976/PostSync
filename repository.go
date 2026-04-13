@@ -104,6 +104,7 @@ type Repository interface {
 
 	// Управление подписками
 	GrantSubscription(userID int64, days int) error
+	RevokeSubscription(userID int64) error
 
 	Close() error
 }

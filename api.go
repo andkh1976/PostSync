@@ -837,7 +837,7 @@ func (b *Bridge) handleAPIRequestAccess(w http.ResponseWriter, r *http.Request) 
 	var safeName string
 	var safeUser string
 	if err == nil {
-		safeName = strings.ReplaceAll(profile.FirstName+" "+profile.LastName, "<", "&lt;")
+		safeName = strings.ReplaceAll(profile.FirstName, "<", "&lt;")
 		safeUser = strings.ReplaceAll(profile.Username, "<", "&lt;")
 	} else {
 		safeName = "Unknown"
