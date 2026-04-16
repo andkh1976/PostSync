@@ -14,90 +14,40 @@ import (
 
 // --- TG Entities → Markdown (для MAX) ---
 
-// tgEntitiesToMarkdown конвертирует TG text + entities в markdown-текст для MAX.
-// Обрабатывает edge cases: пробелы перед/после маркеров выносятся за пределы тегов.
+type markdownEntity struct {
+	offset   int
+	length   int
+	open     string
+	close    string
+	priority int
+	valid    bool
+	index    int
+}
+
+type markdownEvent struct {
+	pos      int
+	open     bool
+	marker   string
+	priority int
+	length   int
+	index    int
+}
+
 func tgEntitiesToMarkdown(text string, entities []tgbotapi.MessageEntity) string {
 	if len(entities) == 0 {
 		return text
 	}
 
-	// Конвертируем в UTF-16 для корректных offsets (TG использует UTF-16)
-	runes := []rune(text)
-	utf16units := utf16.Encode(runes)
-
-	// Собираем фрагменты: чередуя plain text и форматированные куски
-	// Работаем в UTF-16 координатах
-	type fragment struct {
-		start, end int // UTF-16 offsets
-		entity     *tgbotapi.MessageEntity
+	converted := make([]markdownEntity, 0, len(entities))
+	for i, e := range entities {
+		md := markdownEntityFromTg(e)
+		md.index = i
+		if md.valid {
+			converted = append(converted, md)
+		}
 	}
 
-	// Сортируем entities по offset
-	sorted := make([]tgbotapi.MessageEntity, len(entities))
-	copy(sorted, entities)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Offset < sorted[j].Offset
-	})
-
-	var sb strings.Builder
-	pos := 0
-
-	for i := range sorted {
-		e := &sorted[i]
-		var open, close string
-		switch e.Type {
-		case "bold":
-			open, close = "**", "**"
-		case "italic":
-			open, close = "_", "_"
-		case "code":
-			open, close = "`", "`"
-		case "pre":
-			open, close = "```\n", "\n```"
-		case "strikethrough":
-			open, close = "~~", "~~"
-		case "text_link":
-			open = "["
-			close = fmt.Sprintf("](%s)", e.URL)
-		default:
-			continue
-		}
-
-		// Текст до entity
-		if e.Offset > pos {
-			sb.WriteString(utf16ToString(utf16units[pos:e.Offset]))
-		}
-
-		// Текст entity
-		end := e.Offset + e.Length
-		if end > len(utf16units) {
-			end = len(utf16units)
-		}
-		inner := utf16ToString(utf16units[e.Offset:end])
-
-		// Trim пробелов: выносим leading/trailing пробелы за маркеры
-		trimmed := strings.TrimRight(inner, " \t\n")
-		trailingSpaces := inner[len(trimmed):]
-		trimmed2 := strings.TrimLeft(trimmed, " \t\n")
-		leadingSpaces := trimmed[:len(trimmed)-len(trimmed2)]
-
-		sb.WriteString(leadingSpaces)
-		if trimmed2 != "" {
-			sb.WriteString(open)
-			sb.WriteString(trimmed2)
-			sb.WriteString(close)
-		}
-		sb.WriteString(trailingSpaces)
-
-		pos = end
-	}
-
-	// Остаток текста
-	if pos < len(utf16units) {
-		sb.WriteString(utf16ToString(utf16units[pos:]))
-	}
-
-	return sb.String()
+	return renderMarkdownEntities(text, converted)
 }
 
 // utf16ToString конвертирует UTF-16 slice обратно в Go string.
@@ -115,83 +65,179 @@ func mtprotoEntitiesToMarkdown(text string, entities []tg.MessageEntityClass) st
 		return text
 	}
 
-	runes := []rune(text)
-	utf16units := utf16.Encode(runes)
-
-	type entityInfo struct {
-		offset int
-		length int
-		open   string
-		close  string
-	}
-
-	var infos []entityInfo
-	for _, e := range entities {
-		var open, close string
-		offset := e.GetOffset()
-		length := e.GetLength()
-
-		switch e := e.(type) {
-		case *tg.MessageEntityBold:
-			open, close = "**", "**"
-		case *tg.MessageEntityItalic:
-			open, close = "_", "_"
-		case *tg.MessageEntityCode:
-			open, close = "`", "`"
-		case *tg.MessageEntityPre:
-			open, close = "```\n", "\n```"
-		case *tg.MessageEntityStrike:
-			open, close = "~~", "~~"
-		case *tg.MessageEntityTextURL:
-			open = "["
-			close = fmt.Sprintf("](%s)", e.URL)
-		default:
-			continue
+	converted := make([]markdownEntity, 0, len(entities))
+	for i, e := range entities {
+		md := markdownEntityFromMTProto(e)
+		md.index = i
+		if md.valid {
+			converted = append(converted, md)
 		}
-
-		infos = append(infos, entityInfo{offset: offset, length: length, open: open, close: close})
 	}
 
-	if len(infos) == 0 {
+	return renderMarkdownEntities(text, converted)
+}
+
+func markdownEntityFromTg(e tgbotapi.MessageEntity) markdownEntity {
+	base := markdownEntity{offset: e.Offset, length: e.Length, valid: true}
+	switch e.Type {
+	case "bold":
+		base.open, base.close, base.priority = "**", "**", 10
+	case "italic":
+		base.open, base.close, base.priority = "_", "_", 20
+	case "underline":
+		base.open, base.close, base.priority = "__", "__", 30
+	case "strikethrough":
+		base.open, base.close, base.priority = "~~", "~~", 40
+	case "code":
+		base.open, base.close, base.priority = "`", "`", 50
+	case "pre":
+		base.open, base.close, base.priority = "```\n", "\n```", 60
+	case "text_link":
+		base.open, base.close, base.priority = "[", fmt.Sprintf("](%s)", e.URL), 70
+	case "text_mention":
+		if e.User == nil || e.User.ID == 0 {
+			base.valid = false
+			return base
+		}
+		base.open, base.close, base.priority = "[", fmt.Sprintf("](tg://user?id=%d)", e.User.ID), 70
+	case "spoiler":
+		base.open, base.close, base.priority = "||", "||", 80
+	case "blockquote":
+		base.open, base.close, base.priority = "> ", "", 90
+	case "custom_emoji":
+		base.valid = false
+	default:
+		base.valid = false
+	}
+	return base
+}
+
+func markdownEntityFromMTProto(e tg.MessageEntityClass) markdownEntity {
+	base := markdownEntity{offset: e.GetOffset(), length: e.GetLength(), valid: true}
+	switch e := e.(type) {
+	case *tg.MessageEntityBold:
+		base.open, base.close, base.priority = "**", "**", 10
+	case *tg.MessageEntityItalic:
+		base.open, base.close, base.priority = "_", "_", 20
+	case *tg.MessageEntityUnderline:
+		base.open, base.close, base.priority = "__", "__", 30
+	case *tg.MessageEntityStrike:
+		base.open, base.close, base.priority = "~~", "~~", 40
+	case *tg.MessageEntityCode:
+		base.open, base.close, base.priority = "`", "`", 50
+	case *tg.MessageEntityPre:
+		base.open, base.close, base.priority = "```\n", "\n```", 60
+	case *tg.MessageEntityTextURL:
+		base.open, base.close, base.priority = "[", fmt.Sprintf("](%s)", e.URL), 70
+	case *tg.MessageEntityMentionName:
+		base.open, base.close, base.priority = "[", fmt.Sprintf("](tg://user?id=%d)", e.UserID), 70
+	case *tg.MessageEntitySpoiler:
+		base.open, base.close, base.priority = "||", "||", 80
+	case *tg.MessageEntityBlockquote:
+		base.open, base.close, base.priority = "> ", "", 90
+	case *tg.MessageEntityCustomEmoji:
+		base.valid = false
+	default:
+		base.valid = false
+	}
+	return base
+}
+
+func renderMarkdownEntities(text string, entities []markdownEntity) string {
+	if len(entities) == 0 {
 		return text
 	}
 
-	sort.Slice(infos, func(i, j int) bool {
-		return infos[i].offset < infos[j].offset
-	})
+	utf16units := utf16.Encode([]rune(text))
+	limit := len(utf16units)
+	starts := make(map[int][]markdownEntity)
 
-	var sb strings.Builder
-	pos := 0
-
-	for _, info := range infos {
-		if info.offset > pos {
-			sb.WriteString(utf16ToString(utf16units[pos:info.offset]))
+	for _, entity := range entities {
+		if entity.length <= 0 || entity.offset < 0 || entity.offset >= limit {
+			continue
 		}
-
-		end := info.offset + info.length
-		if end > len(utf16units) {
-			end = len(utf16units)
+		end := entity.offset + entity.length
+		if end > limit {
+			end = limit
 		}
-		inner := utf16ToString(utf16units[info.offset:end])
-
-		trimmed := strings.TrimRight(inner, " \t\n")
-		trailingSpaces := inner[len(trimmed):]
-		trimmed2 := strings.TrimLeft(trimmed, " \t\n")
-		leadingSpaces := trimmed[:len(trimmed)-len(trimmed2)]
-
-		sb.WriteString(leadingSpaces)
-		if trimmed2 != "" {
-			sb.WriteString(info.open)
-			sb.WriteString(trimmed2)
-			sb.WriteString(info.close)
+		if end <= entity.offset {
+			continue
 		}
-		sb.WriteString(trailingSpaces)
-
-		pos = end
+		entity.length = end - entity.offset
+		starts[entity.offset] = append(starts[entity.offset], entity)
 	}
 
-	if pos < len(utf16units) {
-		sb.WriteString(utf16ToString(utf16units[pos:]))
+	for pos := range starts {
+		sort.Slice(starts[pos], func(i, j int) bool {
+			a, b := starts[pos][i], starts[pos][j]
+			if a.length != b.length {
+				return a.length > b.length
+			}
+			if a.priority != b.priority {
+				return a.priority < b.priority
+			}
+			return a.index < b.index
+		})
+	}
+
+	endEvents := make(map[int][]markdownEvent)
+	startEvents := make(map[int][]markdownEvent)
+	for pos, list := range starts {
+		for _, entity := range list {
+			startEvents[pos] = append(startEvents[pos], markdownEvent{
+				pos:      pos,
+				open:     true,
+				marker:   entity.open,
+				priority: entity.priority,
+				length:   entity.length,
+				index:    entity.index,
+			})
+			end := pos + entity.length
+			endEvents[end] = append(endEvents[end], markdownEvent{
+				pos:      end,
+				open:     false,
+				marker:   entity.close,
+				priority: entity.priority,
+				length:   entity.length,
+				index:    entity.index,
+			})
+		}
+	}
+
+	for pos := range endEvents {
+		sort.Slice(endEvents[pos], func(i, j int) bool {
+			a, b := endEvents[pos][i], endEvents[pos][j]
+			if a.length != b.length {
+				return a.length < b.length
+			}
+			if a.priority != b.priority {
+				return a.priority > b.priority
+			}
+			return a.index > b.index
+		})
+	}
+
+	var sb strings.Builder
+	for i := 0; i <= limit; i++ {
+		if events := endEvents[i]; len(events) > 0 {
+			for _, event := range events {
+				sb.WriteString(event.marker)
+			}
+		}
+		if events := startEvents[i]; len(events) > 0 {
+			for _, event := range events {
+				sb.WriteString(event.marker)
+			}
+		}
+		if i < limit {
+			if utf16.IsSurrogate(rune(utf16units[i])) && i+1 < limit {
+				r := utf16.DecodeRune(rune(utf16units[i]), rune(utf16units[i+1]))
+				sb.WriteRune(r)
+				i++
+			} else {
+				sb.WriteRune(rune(utf16units[i]))
+			}
+		}
 	}
 
 	return sb.String()

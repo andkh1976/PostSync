@@ -18,7 +18,7 @@ const mediaGroupTimeout = 1 * time.Second
 type mediaGroupItem struct {
 	photoSizes  []tgbotapi.PhotoSize
 	videoFileID string // для видео в альбомах
-	caption     string
+	prepared    tgMaxText
 	replyToMsg  *tgbotapi.Message
 	entities    []tgbotapi.MessageEntity
 	msg         *tgbotapi.Message
@@ -95,10 +95,10 @@ func (b *Bridge) flushMediaGroup(ctx context.Context, groupID string) {
 
 	// Caption берём из первого элемента, у которого caption не пустой.
 	// Entity-форматирование и метка источника уже применены при создании caption.
-	var caption string
+	var prepared tgMaxText
 	for _, it := range items {
-		if it.caption != "" {
-			caption = it.caption
+		if it.prepared.Text != "" {
+			prepared = it.prepared
 			break
 		}
 	}
@@ -114,14 +114,15 @@ func (b *Bridge) flushMediaGroup(ctx context.Context, groupID string) {
 		}
 	}
 
-	// Caption уже содержит entity-форматирование и метку источника —
-	// они были применены функциями formatTgCaption/formatTgCrosspostCaption
-	// при добавлении элементов в буфер. Повторная конвертация не нужна.
-	mdCaption := caption
-
-	m := maxbot.NewMessage().SetChat(maxChatID).SetText(mdCaption)
+	m := maxbot.NewMessage().SetChat(maxChatID).SetText(prepared.Text)
+	if prepared.Format != "" {
+		m.SetFormat(prepared.Format)
+	}
 	if replyTo != "" {
-		m.SetReply(mdCaption, replyTo)
+		m.SetReply(prepared.Text, replyTo)
+		if prepared.Format != "" {
+			m.SetFormat(prepared.Format)
+		}
 	}
 
 	// Загружаем и добавляем все фото
@@ -188,11 +189,11 @@ func (b *Bridge) flushMediaGroup(ctx context.Context, groupID string) {
 			}
 			// Fallback — по одному
 			for _, it := range items {
-				var cap string
+				var cap tgMaxText
 				if isCrosspost {
-					cap = formatTgCrosspostCaption(it.msg)
+					cap = buildTgCrosspostCaptionForMax(it.msg)
 				} else {
-					cap = formatTgCaption(it.msg, prefix, b.cfg.MessageNewline)
+					cap = buildTgCaptionForMax(it.msg, prefix, b.cfg.MessageNewline)
 				}
 				go b.forwardTgToMax(ctx, it.msg, maxChatID, cap)
 			}
@@ -207,9 +208,9 @@ func (b *Bridge) flushMediaGroup(ctx context.Context, groupID string) {
 	for i, token := range videoTokens {
 		videoCaption := ""
 		if i == 0 && photosSent == 0 {
-			videoCaption = mdCaption // caption на первое видео если нет фото
+			videoCaption = prepared.Text // caption на первое видео если нет фото
 		}
-		mid, err := b.sendMaxDirectFormatted(ctx, maxChatID, videoCaption, "video", token, "", "")
+		mid, err := b.sendMaxDirectFormatted(ctx, maxChatID, videoCaption, "video", token, "", prepared.Format)
 		if err != nil {
 			slog.Error("TG→MAX media group video send failed", "err", err)
 			continue

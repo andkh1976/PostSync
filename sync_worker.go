@@ -313,24 +313,27 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, api *tg.Client, msg
 		return fmt.Errorf("circuit breaker active for maxChatID %d", maxChatID)
 	}
 
-	// Узнаём, есть ли реальное форматирование в оригинальном сообщении
-	hasFormatting := mtprotoEntitiesToMarkdown(msg.Message, msg.Entities) != msg.Message
-	text := mtprotoEntitiesToMarkdown(msg.Message, msg.Entities)
+	prepared := tgMaxText{
+		Text: mtprotoEntitiesToMarkdown(msg.Message, msg.Entities),
+	}
+	if prepared.Text != msg.Message {
+		prepared.Format = "markdown"
+	}
 
 	// Применяем замены кросспостинга если настроены
 	repl := b.repo.GetCrosspostReplacements(maxChatID)
 	if len(repl.TgToMax) > 0 {
-		text = applyReplacements(text, repl.TgToMax)
+		prepared.Text = applyReplacements(prepared.Text, repl.TgToMax)
 	}
 
 	// Добавляем метку источника с датой оригинального поста
 	if msg.Date > 0 {
 		label := formatTgDateLabel(msg.Date)
-		if text != "" {
-			text += "\n\n" + label
+		if prepared.Text != "" {
+			prepared.Text += "\n\n" + label
 		} else if msg.Media != nil {
 			// Медиа без подписи: метка становится единственным текстом
-			text = label
+			prepared.Text = label
 		}
 	}
 
@@ -418,17 +421,12 @@ func (b *Bridge) forwardMTProtoMsgToMax(ctx context.Context, api *tg.Client, msg
 		}
 	}
 
-	if text == "" && mediaToken == "" {
+	if prepared.Text == "" && mediaToken == "" {
 		slog.Debug("Sync worker: empty message, skipping", "tgMsgID", msg.ID)
 		return nil
 	}
 
-	var format string
-	if hasFormatting {
-		format = "markdown"
-	}
-
-	mid, err := b.sendMaxDirectFormatted(ctx, maxChatID, text, mediaAttType, mediaToken, "", format)
+	mid, err := b.sendMaxDirectFormatted(ctx, maxChatID, prepared.Text, mediaAttType, mediaToken, "", prepared.Format)
 	if err != nil {
 		if b.cbFail(maxChatID) {
 			slog.Warn("Sync worker: circuit breaker triggered", "maxChatID", maxChatID)

@@ -10,6 +10,71 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+type tgMaxText struct {
+	Text   string
+	Format string
+}
+
+func prepareTgTextForMax(text string, entities []tgbotapi.MessageEntity) tgMaxText {
+	prepared := tgEntitiesToMarkdown(text, entities)
+	result := tgMaxText{Text: prepared}
+	if prepared != text {
+		result.Format = "markdown"
+	}
+	return result
+}
+
+func prepareTgMessageTextForMax(msg *tgbotapi.Message) tgMaxText {
+	if msg == nil {
+		return tgMaxText{}
+	}
+	if msg.Text != "" {
+		return prepareTgTextForMax(msg.Text, msg.Entities)
+	}
+	return prepareTgTextForMax(msg.Caption, msg.CaptionEntities)
+}
+
+func buildTgCaptionForMax(msg *tgbotapi.Message, prefix, newline bool) tgMaxText {
+	prepared := prepareTgMessageTextForMax(msg)
+	if msg != nil && msg.Date > 0 {
+		label := formatTgDateLabel(msg.Date)
+		if prepared.Text != "" {
+			// append later after attribution
+		} else if msgHasMedia(msg) {
+			prepared.Text = label
+			return prepared
+		} else {
+			return prepared
+		}
+	}
+	if prepared.Text == "" {
+		return prepared
+	}
+	name := tgName(msg)
+	if prefix {
+		prepared.Text = formatAttribution("[TG] "+name, prepared.Text, newline)
+	} else {
+		prepared.Text = formatAttribution(name, prepared.Text, newline)
+	}
+	if msg != nil && msg.Date > 0 {
+		prepared.Text += "\n\n" + formatTgDateLabel(msg.Date)
+	}
+	return prepared
+}
+
+func buildTgCrosspostCaptionForMax(msg *tgbotapi.Message) tgMaxText {
+	prepared := prepareTgMessageTextForMax(msg)
+	if msg != nil && msg.Date > 0 {
+		label := formatTgDateLabel(msg.Date)
+		if prepared.Text != "" {
+			prepared.Text += "\n\n" + label
+		} else if msgHasMedia(msg) {
+			prepared.Text = label
+		}
+	}
+	return prepared
+}
+
 func tgName(msg *tgbotapi.Message) string {
 	if msg.From == nil {
 		if msg.SenderChat != nil {
@@ -48,39 +113,13 @@ func msgHasMedia(msg *tgbotapi.Message) bool {
 
 // formatTgCaption — для пересылки (текст или caption)
 func formatTgCaption(msg *tgbotapi.Message, prefix, newline bool) string {
-	name := tgName(msg)
-	var text string
-	if msg.Text != "" {
-		text = tgEntitiesToMarkdown(msg.Text, msg.Entities)
-	} else {
-		text = tgEntitiesToMarkdown(msg.Caption, msg.CaptionEntities)
-	}
-	var result string
-	if prefix {
-		result = formatAttribution("[TG] "+name, text, newline)
-	} else {
-		result = formatAttribution(name, text, newline)
-	}
-	if msg.Date > 0 {
-		label := formatTgDateLabel(msg.Date)
-		if text != "" {
-			result += "\n\n" + label
-		} else if msgHasMedia(msg) {
-			// Медиа без подписи: метка становится единственным caption
-			result = label
-		}
-		// Пустое текстовое сообщение — метка не добавляется
-	}
-	return result
+	return buildTgCaptionForMax(msg, prefix, newline).Text
 }
 
 // formatTgMessage — для edit (полный формат)
 func formatTgMessage(msg *tgbotapi.Message, prefix, newline bool) string {
 	name := tgName(msg)
-	text := msg.Text
-	if text == "" {
-		text = msg.Caption
-	}
+	text := prepareTgMessageTextForMax(msg).Text
 	if text == "" {
 		return ""
 	}
@@ -110,23 +149,7 @@ func formatMaxCaption(upd *maxschemes.MessageCreatedUpdate, prefix, newline bool
 
 // formatTgCrosspostCaption — для кросспостинга каналов (без attribution и префиксов)
 func formatTgCrosspostCaption(msg *tgbotapi.Message) string {
-	var text string
-	if msg.Text != "" {
-		text = tgEntitiesToMarkdown(msg.Text, msg.Entities)
-	} else {
-		text = tgEntitiesToMarkdown(msg.Caption, msg.CaptionEntities)
-	}
-	if msg.Date > 0 {
-		label := formatTgDateLabel(msg.Date)
-		if text != "" {
-			text += "\n\n" + label
-		} else if msgHasMedia(msg) {
-			// Медиа без подписи: метка становится единственным caption
-			text = label
-		}
-		// Пустое текстовое сообщение — метка не добавляется
-	}
-	return text
+	return buildTgCrosspostCaptionForMax(msg).Text
 }
 
 // formatMaxCrosspostCaption — для кросспостинга каналов (без attribution и префиксов)

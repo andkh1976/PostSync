@@ -8,6 +8,167 @@ import (
 	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
 )
 
+func TestPrepareTgTextForMax(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		entities []tgbotapi.MessageEntity
+		wantText string
+		wantFmt  string
+	}{
+		{
+			name:     "plain text keeps empty format",
+			text:     "plain text",
+			entities: nil,
+			wantText: "plain text",
+			wantFmt:  "",
+		},
+		{
+			name: "bold enables markdown",
+			text: "hello world",
+			entities: []tgbotapi.MessageEntity{
+				{Type: "bold", Offset: 6, Length: 5},
+			},
+			wantText: "hello **world**",
+			wantFmt:  "markdown",
+		},
+		{
+			name: "link enables markdown",
+			text: "click here",
+			entities: []tgbotapi.MessageEntity{
+				{Type: "text_link", Offset: 6, Length: 4, URL: "https://example.com"},
+			},
+			wantText: "click [here](https://example.com)",
+			wantFmt:  "markdown",
+		},
+		{
+			name: "unsupported entity keeps plain text formatting decision stable",
+			text: "hello @user",
+			entities: []tgbotapi.MessageEntity{
+				{Type: "mention", Offset: 6, Length: 5},
+			},
+			wantText: "hello @user",
+			wantFmt:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := prepareTgTextForMax(tt.text, tt.entities)
+			if got.Text != tt.wantText {
+				t.Fatalf("prepareTgTextForMax().Text = %q, want %q", got.Text, tt.wantText)
+			}
+			if got.Format != tt.wantFmt {
+				t.Fatalf("prepareTgTextForMax().Format = %q, want %q", got.Format, tt.wantFmt)
+			}
+		})
+	}
+}
+
+func TestPrepareTgMessageTextForMax(t *testing.T) {
+	t.Run("uses caption fallback consistently", func(t *testing.T) {
+		msg := &tgbotapi.Message{
+			Caption: "caption text",
+			CaptionEntities: []tgbotapi.MessageEntity{
+				{Type: "code", Offset: 8, Length: 4},
+			},
+		}
+
+		got := prepareTgMessageTextForMax(msg)
+		if got.Text != "caption `text`" {
+			t.Fatalf("prepareTgMessageTextForMax().Text = %q, want %q", got.Text, "caption `text`")
+		}
+		if got.Format != "markdown" {
+			t.Fatalf("prepareTgMessageTextForMax().Format = %q, want %q", got.Format, "markdown")
+		}
+	})
+}
+
+func TestBuildTgCaptionForMax(t *testing.T) {
+	t.Run("plain text keeps plain format", func(t *testing.T) {
+		msg := &tgbotapi.Message{
+			Text: "hello",
+			From: &tgbotapi.User{FirstName: "Anna"},
+		}
+		got := buildTgCaptionForMax(msg, true, false)
+		if got.Text != "[TG] Anna: hello" {
+			t.Fatalf("Text = %q, want %q", got.Text, "[TG] Anna: hello")
+		}
+		if got.Format != "" {
+			t.Fatalf("Format = %q, want empty", got.Format)
+		}
+	})
+
+	t.Run("formatted caption enables markdown", func(t *testing.T) {
+		msg := &tgbotapi.Message{
+			Caption:         "hello world",
+			CaptionEntities: []tgbotapi.MessageEntity{{Type: "bold", Offset: 6, Length: 5}},
+			From:            &tgbotapi.User{FirstName: "Anna"},
+		}
+		got := buildTgCaptionForMax(msg, false, false)
+		if got.Text != "Anna: hello **world**" {
+			t.Fatalf("Text = %q, want %q", got.Text, "Anna: hello **world**")
+		}
+		if got.Format != "markdown" {
+			t.Fatalf("Format = %q, want markdown", got.Format)
+		}
+	})
+
+	t.Run("media without caption uses date label only", func(t *testing.T) {
+		msg := &tgbotapi.Message{
+			Photo: []tgbotapi.PhotoSize{{FileID: "x"}},
+			Date:  1743638400,
+			From:  &tgbotapi.User{FirstName: "Anna"},
+		}
+		got := buildTgCaptionForMax(msg, false, false)
+		if got.Text != "[TG] 03.04.2025" {
+			t.Fatalf("Text = %q, want %q", got.Text, "[TG] 03.04.2025")
+		}
+	})
+}
+
+func TestBuildTgCrosspostCaptionForMax(t *testing.T) {
+	t.Run("crosspost with formatting and date label", func(t *testing.T) {
+		msg := &tgbotapi.Message{
+			Text:     "click here",
+			Entities: []tgbotapi.MessageEntity{{Type: "text_link", Offset: 6, Length: 4, URL: "https://example.com"}},
+			Date:     1743638400,
+		}
+		got := buildTgCrosspostCaptionForMax(msg)
+		want := "click [here](https://example.com)\n\n[TG] 03.04.2025"
+		if got.Text != want {
+			t.Fatalf("Text = %q, want %q", got.Text, want)
+		}
+		if got.Format != "markdown" {
+			t.Fatalf("Format = %q, want markdown", got.Format)
+		}
+	})
+}
+
+func TestFormatTgMessage_UsesFormattingForEdits(t *testing.T) {
+	msg := &tgbotapi.Message{
+		Text:     "edited text",
+		Entities: []tgbotapi.MessageEntity{{Type: "code", Offset: 7, Length: 4}},
+		From:     &tgbotapi.User{FirstName: "Ivan"},
+	}
+	got := formatTgMessage(msg, false, false)
+	if got != "Ivan: edited `text`" {
+		t.Fatalf("formatTgMessage() = %q, want %q", got, "Ivan: edited `text`")
+	}
+}
+
+func TestSplitText_LongFormattedTextPreservesContent(t *testing.T) {
+	text := strings.Repeat("**abc** ", 700)
+	parts := splitText(text, 4000)
+	joined := strings.Join(parts, "")
+	joined = strings.ReplaceAll(joined, "\n", "")
+	joined = strings.ReplaceAll(joined, " ", "")
+	original := strings.ReplaceAll(text, " ", "")
+	if joined != original {
+		t.Fatalf("split/join changed content")
+	}
+}
+
 func TestTgName(t *testing.T) {
 	tests := []struct {
 		name     string

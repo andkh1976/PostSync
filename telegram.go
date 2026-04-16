@@ -101,7 +101,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 					edited.Animation != nil || edited.Sticker != nil || edited.Voice != nil || edited.Audio != nil
 				if hasMedia {
 					prefix := b.repo.HasPrefix("tg", edited.Chat.ID)
-					caption := formatTgCaption(edited, prefix, b.cfg.MessageNewline)
+					caption := buildTgCaptionForMax(edited, prefix, b.cfg.MessageNewline)
 					go b.forwardTgToMax(ctx, edited, maxChatID, caption)
 					continue
 				}
@@ -112,11 +112,14 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 					continue
 				}
 				prefix := b.repo.HasPrefix("tg", edited.Chat.ID)
-				fwd := formatTgMessage(edited, prefix, b.cfg.MessageNewline)
-				if fwd == "" {
+				fwd := buildTgCaptionForMax(edited, prefix, b.cfg.MessageNewline)
+				if fwd.Text == "" {
 					continue
 				}
-				m := maxbot.NewMessage().SetChat(maxChatID).SetText(fwd)
+				m := maxbot.NewMessage().SetChat(maxChatID).SetText(fwd.Text)
+				if fwd.Format != "" {
+					m.SetFormat(fwd.Format)
+				}
 				if err := b.maxApi.Messages.EditMessage(ctx, maxMsgID, m); err != nil {
 					slog.Error("TG→MAX edit failed", "err", err, "uid", tgUserID(edited), "tgChat", edited.Chat.ID)
 				} else {
@@ -237,7 +240,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 						continue
 					}
 					b.tgBot.Send(tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("✅ Подписка аннулирована для пользователя %d.", uid)))
-					
+
 					m := tgbotapi.NewMessage(uid, "⚠️ Ваш доступ приостановлен. Для выяснения причин свяжитесь с администратором.")
 					b.tgBot.Send(m)
 					continue
@@ -522,7 +525,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 			}
 
 			prefix := b.repo.HasPrefix("tg", msg.Chat.ID)
-			caption := formatTgCaption(msg, prefix, b.cfg.MessageNewline)
+			caption := buildTgCaptionForMax(msg, prefix, b.cfg.MessageNewline)
 
 			// Проверяем anti-loop
 			checkText := msg.Text
@@ -542,7 +545,7 @@ func (b *Bridge) listenTelegram(ctx context.Context) {
 				go b.bufferMediaGroup(ctx, msg.MediaGroupID, mediaGroupItem{
 					photoSizes:  msg.Photo,
 					videoFileID: videoID,
-					caption:     caption,
+					prepared:    caption,
 					replyToMsg:  msg.ReplyToMessage,
 					entities:    msg.CaptionEntities,
 					msg:         msg,
@@ -563,7 +566,7 @@ func tgUserID(msg *tgbotapi.Message) int64 {
 }
 
 // forwardTgToMax пересылает TG-сообщение (текст/медиа) в MAX-чат.
-func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxChatID int64, caption string) {
+func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxChatID int64, prepared tgMaxText) {
 	if b.cbBlocked(maxChatID) {
 		return
 	}
@@ -602,7 +605,10 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 		if checkSize(photo.FileSize, "") {
 			return
 		}
-		m := maxbot.NewMessage().SetChat(maxChatID).SetText(caption)
+		m := maxbot.NewMessage().SetChat(maxChatID).SetText(prepared.Text)
+		if prepared.Format != "" {
+			m.SetFormat(prepared.Format)
+		}
 		if b.cfg.TgAPIURL != "" {
 			// Custom TG API — MAX не может скачать по URL, скачиваем и загружаем через reader
 			if uploaded, err := b.uploadTgPhotoToMax(ctx, photo.FileID); err == nil {
@@ -623,7 +629,10 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 		}
 		if msg.ReplyToMessage != nil {
 			if maxReplyID, ok := b.repo.LookupMaxMsgID(msg.Chat.ID, msg.ReplyToMessage.MessageID); ok {
-				m.SetReply(caption, maxReplyID)
+				m.SetReply(prepared.Text, maxReplyID)
+				if prepared.Format != "" {
+					m.SetFormat(prepared.Format)
+				}
 			}
 		}
 		slog.Info("TG→MAX sending photo", "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
@@ -674,11 +683,17 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 			// Обычный стикер WebP → отправляем как фото
 			if fileURL, err := b.tgFileURL(msg.Sticker.FileID); err == nil {
 				if uploaded, err := b.maxApi.Uploads.UploadPhotoFromUrl(ctx, fileURL); err == nil {
-					m := maxbot.NewMessage().SetChat(maxChatID).SetText(caption)
+					m := maxbot.NewMessage().SetChat(maxChatID).SetText(prepared.Text)
+					if prepared.Format != "" {
+						m.SetFormat(prepared.Format)
+					}
 					m.AddPhoto(uploaded)
 					if msg.ReplyToMessage != nil {
 						if maxReplyID, ok := b.repo.LookupMaxMsgID(msg.Chat.ID, msg.ReplyToMessage.MessageID); ok {
-							m.SetReply(caption, maxReplyID)
+							m.SetReply(prepared.Text, maxReplyID)
+							if prepared.Format != "" {
+								m.SetFormat(prepared.Format)
+							}
 						}
 					}
 					slog.Info("TG→MAX sending sticker as photo", "uid", uid, "tgChat", msg.Chat.ID)
@@ -832,7 +847,7 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 		default:
 			return
 		}
-		caption = caption + mediaType
+		prepared.Text += mediaType
 	}
 
 	// Reply ID
@@ -847,30 +862,14 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 	// применённые функциями formatTgCaption / formatTgCrosspostCaption.
 	// Повторная конвертация entities не нужна; markdown-режим включаем только если
 	// TG entities реально изменили текст (чтобы не применять парсинг к обычному тексту).
-	mdCaption := caption
-	rawEntities := msg.Entities
-	if rawEntities == nil {
-		rawEntities = msg.CaptionEntities
-	}
-	rawText := msg.Text
-	if rawText == "" {
-		rawText = msg.Caption
-	}
-	hasFormatting := tgEntitiesToMarkdown(rawText, rawEntities) != rawText
-
 	var mid string
 	var sendErr error
 
-	var format string
-	if hasFormatting {
-		format = "markdown"
-	}
-
-	chunks := splitText(mdCaption, 4000)
+	chunks := splitText(prepared.Text, 4000)
 	for i, chunk := range chunks {
 		attType := ""
 		attToken := ""
-		
+
 		if i == 0 && mediaAttType != "" {
 			attType = mediaAttType
 			attToken = mediaToken
@@ -881,17 +880,17 @@ func (b *Bridge) forwardTgToMax(ctx context.Context, msg *tgbotapi.Message, maxC
 			slog.Info("TG→MAX sending", "uid", uid, "tgChat", msg.Chat.ID, "maxChat", maxChatID)
 		}
 
-		chunkMid, err := b.sendMaxDirectFormatted(ctx, maxChatID, chunk, attType, attToken, replyTo, format)
+		chunkMid, err := b.sendMaxDirectFormatted(ctx, maxChatID, chunk, attType, attToken, replyTo, prepared.Format)
 		if err != nil {
 			sendErr = err
 			// Останавливаем отправку последующих частей
 			errStr := err.Error()
-			isPermanent := (strings.Contains(errStr, "400") && !strings.Contains(errStr, "attachment.not.ready")) || 
-			               strings.Contains(errStr, "403") || 
-			               strings.Contains(errStr, "404") || 
-			               strings.Contains(errStr, "chat.denied")
+			isPermanent := (strings.Contains(errStr, "400") && !strings.Contains(errStr, "attachment.not.ready")) ||
+				strings.Contains(errStr, "403") ||
+				strings.Contains(errStr, "404") ||
+				strings.Contains(errStr, "chat.denied")
 			if !isPermanent {
-				b.enqueueTg2Max(msg.Chat.ID, msg.MessageID, maxChatID, chunk, attType, attToken, replyTo, format)
+				b.enqueueTg2Max(msg.Chat.ID, msg.MessageID, maxChatID, chunk, attType, attToken, replyTo, prepared.Format)
 			}
 			break
 		}
@@ -944,12 +943,12 @@ func (b *Bridge) handleTgChannelPost(ctx context.Context, msg *tgbotapi.Message)
 		return
 	}
 
-	caption := formatTgCrosspostCaption(msg)
+	caption := buildTgCrosspostCaptionForMax(msg)
 
 	// Применяем замены для TG→MAX
 	repl := b.repo.GetCrosspostReplacements(maxChatID)
 	if len(repl.TgToMax) > 0 {
-		caption = applyReplacements(caption, repl.TgToMax)
+		caption.Text = applyReplacements(caption.Text, repl.TgToMax)
 	}
 
 	// Media group (альбом) — буферизуем и отправляем вместе
@@ -961,7 +960,7 @@ func (b *Bridge) handleTgChannelPost(ctx context.Context, msg *tgbotapi.Message)
 		go b.bufferMediaGroup(ctx, msg.MediaGroupID, mediaGroupItem{
 			photoSizes:  msg.Photo,
 			videoFileID: videoID,
-			caption:     caption,
+			prepared:    caption,
 			replyToMsg:  msg.ReplyToMessage,
 			entities:    msg.CaptionEntities,
 			msg:         msg,
@@ -1314,15 +1313,15 @@ func (b *Bridge) handleTgEditedChannelPost(ctx context.Context, edited *tgbotapi
 		return
 	}
 
-	text := edited.Text
-	if text == "" {
-		text = edited.Caption
-	}
-	if text == "" {
+	prepared := buildTgCrosspostCaptionForMax(edited)
+	if prepared.Text == "" {
 		return
 	}
 
-	m := maxbot.NewMessage().SetChat(maxChatID).SetText(text)
+	m := maxbot.NewMessage().SetChat(maxChatID).SetText(prepared.Text)
+	if prepared.Format != "" {
+		m.SetFormat(prepared.Format)
+	}
 	if err := b.maxApi.Messages.EditMessage(ctx, maxMsgID, m); err != nil {
 		slog.Error("TG→MAX crosspost edit failed", "err", err)
 	} else {
