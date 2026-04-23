@@ -19,7 +19,7 @@ func newTestBridge(t *testing.T) (*Bridge, *sqliteRepo) {
 	if !ok {
 		t.Fatalf("unexpected repo type %T", repoAny)
 	}
-	b := &Bridge{repo: repo}
+	b := &Bridge{repo: repo, authFlows: make(map[int64]*AuthFlow)}
 	b.authMiddlewareFunc = func(r *http.Request) (*apiOwner, error) {
 		return &apiOwner{UserID: 101, Platform: "tg"}, nil
 	}
@@ -132,5 +132,78 @@ func TestHandleAPIChannelsPairUsesConfirmedMaxChannel(t *testing.T) {
 	}
 	if used.Status != MaxChannelConfirmationStatusUsed {
 		t.Fatalf("expected used confirmation, got %s", used.Status)
+	}
+}
+
+func TestHandleAPIMTProtoAuthResetClearsUserFlow(t *testing.T) {
+	b, repo := newTestBridge(t)
+	defer repo.Close()
+
+	flow := NewAuthFlow()
+	b.authFlows[101] = flow
+
+	req := httptest.NewRequest(http.MethodPost, "/api/mtproto/auth/reset", nil)
+	rr := httptest.NewRecorder()
+
+	b.handleAPIMTProtoAuthReset(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json decode failed: %v", err)
+	}
+	if body.Status != "none" {
+		t.Fatalf("expected status none, got %s", body.Status)
+	}
+
+	if _, ok := b.authFlows[101]; ok {
+		t.Fatal("expected auth flow to be removed")
+	}
+
+	select {
+	case <-flow.ctx.Done():
+	default:
+		t.Fatal("expected auth flow context to be canceled")
+	}
+}
+
+func TestHandleAPIMTProtoAuthStatusSanitizesInternalError(t *testing.T) {
+	b, repo := newTestBridge(t)
+	defer repo.Close()
+
+	b.authFlows[101] = &AuthFlow{
+		Status: "error",
+		Error:  "rpc error: code = PermissionDenied desc = PASSWORD_HASH_INVALID",
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/mtproto/auth/status", nil)
+	rr := httptest.NewRecorder()
+
+	b.handleAPIMTProtoAuthStatus(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var body struct {
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json decode failed: %v", err)
+	}
+	if body.Status != "error" {
+		t.Fatalf("expected status error, got %s", body.Status)
+	}
+	if body.Error == "" {
+		t.Fatal("expected sanitized error message")
+	}
+	if strings.Contains(body.Error, "PASSWORD_HASH_INVALID") || strings.Contains(body.Error, "rpc error") {
+		t.Fatalf("expected sanitized message without internal details, got %q", body.Error)
 	}
 }

@@ -20,6 +20,22 @@ import (
 	"github.com/gotd/td/telegram/auth"
 )
 
+func sanitizeMTProtoAuthError(errMsg string) string {
+	msg := strings.ToUpper(strings.TrimSpace(errMsg))
+	switch {
+	case strings.Contains(msg, "PASSWORD_HASH_INVALID"):
+		return "Неверный облачный пароль Telegram. Попробуйте еще раз."
+	case strings.Contains(msg, "PHONE_CODE_INVALID"):
+		return "Неверный код авторизации. Запросите новый код и попробуйте снова."
+	case strings.Contains(msg, "PHONE_CODE_EXPIRED"):
+		return "Срок действия кода истек. Запросите новый код и попробуйте снова."
+	case strings.Contains(msg, "FLOOD_WAIT"):
+		return "Слишком много попыток входа. Подождите немного и попробуйте снова."
+	default:
+		return "Авторизация Telegram не завершена. Попробуйте снова."
+	}
+}
+
 // apiOwner содержит данные авторизованного пользователя, извлечённые из initData.
 type apiOwner struct {
 	UserID   int64
@@ -1059,6 +1075,7 @@ func (b *Bridge) registerAPIRoutes(mux *http.ServeMux) {
 	// MTProto SaaS Auth
 	mux.HandleFunc("/api/mtproto/auth/status", b.handleAPIMTProtoAuthStatus)
 	mux.HandleFunc("/api/mtproto/auth/start", b.handleAPIMTProtoAuthStart)
+	mux.HandleFunc("/api/mtproto/auth/reset", b.handleAPIMTProtoAuthReset)
 	mux.HandleFunc("/api/mtproto/auth/phone", b.handleAPIMTProtoAuthPhone)
 	mux.HandleFunc("/api/mtproto/auth/code", b.handleAPIMTProtoAuthCode)
 	mux.HandleFunc("/api/mtproto/auth/password", b.handleAPIMTProtoAuthPassword)
@@ -1103,7 +1120,7 @@ func (b *Bridge) handleAPIMTProtoAuthStatus(w http.ResponseWriter, r *http.Reque
 	if exists {
 		writeJSON(w, http.StatusOK, map[string]string{
 			"status": flow.Status,
-			"error":  flow.Error,
+			"error":  sanitizeMTProtoAuthError(flow.Error),
 		})
 		return
 	}
@@ -1147,6 +1164,30 @@ func (b *Bridge) handleAPIMTProtoAuthStart(w http.ResponseWriter, r *http.Reques
 	go b.runSaaSAuthClient(owner.UserID, flow)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": flow.Status})
+}
+
+// handleAPIMTProtoAuthReset — POST /api/mtproto/auth/reset
+func (b *Bridge) handleAPIMTProtoAuthReset(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	owner, err := b.authMiddleware(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	b.authFlowsMu.Lock()
+	if flow, ok := b.authFlows[owner.UserID]; ok {
+		flow.cancel()
+		delete(b.authFlows, owner.UserID)
+	}
+	b.authFlowsMu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "none"})
 }
 
 // runSaaSAuthClient запускает клиент gotd для авторизации пользователя.

@@ -635,6 +635,7 @@
     </div>
     <div class="action-btns">
       <button class="btn btn-primary" id="btn-tg-auth" onclick="submitTgAuth()" style="width:100%">Войти</button>
+      <button class="btn" id="btn-tg-auth-reset" onclick="restartMtprotoAuth()" style="width:100%">Начать заново</button>
     </div>
     <div class="status-bar" id="tg-auth-status"></div>
   </div>
@@ -714,6 +715,74 @@
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || 'Ошибка ' + res.status);
     return body;
+  }
+
+  function resetMtprotoAuthUI(message = '') {
+    const sForm = document.getElementById('sync-form');
+    const pBlock = document.getElementById('tg-phone-block');
+    const cBlock = document.getElementById('tg-auth-block');
+
+    document.getElementById('tg-auth-code-input').value = '';
+    document.getElementById('tg-2fa-pwd-input').value = '';
+    setLoading('btn-tg-phone', false);
+    setLoading('btn-tg-auth', false);
+
+    sForm.style.display = 'none';
+    cBlock.style.display = 'none';
+    pBlock.style.display = '';
+    pBlock.classList.add('fade-in');
+
+    document.getElementById('tg-auth-status').className = 'status-bar';
+    document.getElementById('tg-auth-status').textContent = '';
+
+    if (message) {
+      showStatus('tg-phone-status', message, 'err');
+    } else {
+      showStatus('tg-phone-status', '', 'ok');
+    }
+  }
+
+  function setMtprotoAuthStep(status) {
+    const sForm = document.getElementById('sync-form');
+    const pBlock = document.getElementById('tg-phone-block');
+    const cBlock = document.getElementById('tg-auth-block');
+    const codeInput = document.getElementById('tg-auth-code-input');
+    const pwdInput = document.getElementById('tg-2fa-pwd-input');
+
+    sForm.style.display = 'none';
+    pBlock.style.display = 'none';
+    cBlock.style.display = '';
+    cBlock.classList.add('fade-in');
+    setLoading('btn-tg-phone', false);
+    setLoading('btn-tg-auth', false);
+    showStatus('tg-phone-status', '', 'ok');
+
+    if (status === 'waiting_password') {
+      codeInput.disabled = true;
+      codeInput.placeholder = 'Код уже принят';
+      showStatus('tg-auth-status', 'Введите облачный пароль Telegram, чтобы завершить вход.', 'ok');
+      pwdInput.focus();
+      return;
+    }
+
+    codeInput.disabled = false;
+    codeInput.placeholder = '12345';
+    showStatus('tg-auth-status', '', 'ok');
+  }
+
+  async function restartMtprotoAuth(message = 'Введите номер телефона заново и запросите новый код.') {
+    if (authPollInterval) {
+      clearInterval(authPollInterval);
+      authPollInterval = null;
+    }
+
+    try {
+      await apiFetch('/api/mtproto/auth/reset', { method: 'POST' });
+    } catch (e) {
+      console.error('mtproto reset err', e);
+    }
+
+    resetMtprotoAuthUI(message);
   }
 
   // ─── Profile (Sprint 4) ───────────────────────────────────────────────────
@@ -1126,12 +1195,9 @@
         cBlock.style.display = 'none';
         populateSyncSelect();
       } else if (res.status === 'waiting_code' || res.status === 'waiting_password') {
-        sForm.style.display = 'none';
-        pBlock.style.display = 'none';
-        cBlock.style.display = '';
-        cBlock.classList.add('fade-in');
-        setLoading('btn-tg-phone', false);
-        showStatus('tg-phone-status', '', 'ok');
+        setMtprotoAuthStep(res.status);
+      } else if (res.status === 'error') {
+        await restartMtprotoAuth('Авторизация не завершена. Введите номер телефона заново и запросите новый код.');
       } else {
         sForm.style.display = 'none';
         pBlock.style.display = '';
@@ -1163,8 +1229,11 @@
   async function submitTgAuth() {
     const code = document.getElementById('tg-auth-code-input').value.trim();
     const pwd  = document.getElementById('tg-2fa-pwd-input').value.trim();
+    const codeInput = document.getElementById('tg-auth-code-input');
+    const codeRequired = !codeInput.disabled;
     
-    if (!code) return showStatus('tg-auth-status', 'Введите код', 'err');
+    if (codeRequired && !code) return showStatus('tg-auth-status', 'Введите код', 'err');
+    if (!codeRequired && !pwd) return showStatus('tg-auth-status', 'Введите облачный пароль Telegram', 'err');
     
     setLoading('btn-tg-auth', true);
     document.getElementById('tg-auth-status').innerHTML = '<span class="spinner"></span>Проверка...';
@@ -1173,12 +1242,13 @@
       if (pwd) {
         await apiFetch('/api/mtproto/auth/password', { method: 'POST', body: JSON.stringify({ password: pwd }) });
       }
-      await apiFetch('/api/mtproto/auth/code', { method: 'POST', body: JSON.stringify({ code }) });
+      if (codeRequired) {
+        await apiFetch('/api/mtproto/auth/code', { method: 'POST', body: JSON.stringify({ code }) });
+      }
       
       pollMtprotoAuthStatus();
     } catch (e) {
-      showStatus('tg-auth-status', '❌ ' + e.message, 'err');
-      setLoading('btn-tg-auth', false);
+      await restartMtprotoAuth('Авторизация не завершена: ' + e.message + '. Введите номер телефона заново и запросите новый код.');
     }
   }
 
@@ -1200,16 +1270,13 @@
         const res = await apiFetch('/api/mtproto/auth/status');
         if (res.status === 'authorized') {
           clearInterval(authPollInterval);
+          authPollInterval = null;
           checkMtprotoStatus();
         } else if (res.status === 'error') {
-          clearInterval(authPollInterval);
-          showStatus('tg-auth-status', '❌ ' + (res.error || 'Ошибка'), 'err');
-          showStatus('tg-phone-status', '❌ ' + (res.error || 'Ошибка'), 'err');
-          setLoading('btn-tg-phone', false);
-          setLoading('btn-tg-auth', false);
+          await restartMtprotoAuth('Авторизация не завершена: ' + (res.error || 'Ошибка') + '. Введите номер телефона заново и запросите новый код.');
         } else if (res.status === 'waiting_code' || res.status === 'waiting_password') {
-          if (document.getElementById('tg-phone-block').style.display !== 'none') {
-             checkMtprotoStatus();
+          if (document.getElementById('tg-phone-block').style.display !== 'none' || res.status === 'waiting_password') {
+             await checkMtprotoStatus();
           }
         }
       } catch (e) {}
