@@ -1332,6 +1332,9 @@ func (b *Bridge) handleTgEditedChannelPost(ctx context.Context, edited *tgbotapi
 // CheckTgAdmin проверяет, является ли пользователь (по ID) создателем (creator) или администратором (administrator)
 // в указанном Telegram-канале/группе. Возвращает false если пользователь не админ, или ошибку если бот не имеет доступа.
 func (b *Bridge) CheckTgAdmin(chatID, userID int64) (bool, error) {
+	if b.checkTgAdminFunc != nil {
+		return b.checkTgAdminFunc(chatID, userID)
+	}
 	// Если это приватный чат (личка с ботом) - нет понятия админов
 	chatInfo, err := b.tgBot.GetChat(tgbotapi.ChatInfoConfig{
 		ChatConfig: tgbotapi.ChatConfig{ChatID: chatID},

@@ -64,6 +64,10 @@ type apiPairRequest struct {
 	MaxChatID int64 `json:"max_chat_id"`
 }
 
+type apiMaxChannelConfirmationRequest struct {
+	MaxChatID int64 `json:"max_chat_id"`
+}
+
 // apiUnpairRequest — тело запроса для DELETE /api/channels.
 // Sprint 4 Correction: заменяет ручной /unbridge.
 type apiUnpairRequest struct {
@@ -177,6 +181,9 @@ func validateMaxInitData(initData, maxToken string) (int64, error) {
 // authMiddleware проверяет заголовок Authorization и возвращает apiOwner.
 // Заголовок формата: "Authorization: tg <initData>" или "Authorization: max <initData>"
 func (b *Bridge) authMiddleware(r *http.Request) (*apiOwner, error) {
+	if b.authMiddlewareFunc != nil {
+		return b.authMiddlewareFunc(r)
+	}
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		// Также проверяем X-Init-Data для совместимости с некоторыми клиентами
@@ -222,6 +229,71 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 // writeError отправляет JSON-ошибку.
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
+}
+
+func (b *Bridge) buildMaxChannelConfirmation(owner *apiOwner, maxChatID int64) (*MaxChannelConfirmation, error) {
+	now := time.Now().UTC()
+	_ = b.repo.ExpireMaxChannelConfirmations(now)
+	confirmation := MaxChannelConfirmation{
+		TgUserID:  owner.UserID,
+		MaxChatID: maxChatID,
+		Code:      buildMaxChannelConfirmationCode(),
+		Status:    MaxChannelConfirmationStatusPending,
+		CreatedAt: now,
+		ExpiresAt: now.Add(15 * time.Minute),
+	}
+	return b.repo.CreateMaxChannelConfirmation(confirmation)
+}
+
+// handleAPIMaxChannelConfirmations — POST /api/max-channel/confirmations
+// Создаёт одноразовый код подтверждения владения MAX-каналом.
+func (b *Bridge) handleAPIMaxChannelConfirmations(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Init-Data")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	owner, err := b.authMiddleware(r)
+	if err != nil {
+		slog.Warn("API /max-channel/confirmations auth failed", "err", err, "ip", r.RemoteAddr)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if !b.checkAccess(owner.UserID) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	var req apiMaxChannelConfirmationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.MaxChatID == 0 {
+		writeError(w, http.StatusBadRequest, "max_chat_id is required")
+		return
+	}
+
+	confirmation, err := b.buildMaxChannelConfirmation(owner, req.MaxChatID)
+	if err != nil {
+		slog.Error("API /max-channel/confirmations failed", "err", err, "owner", owner.UserID, "maxChat", req.MaxChatID)
+		writeError(w, http.StatusInternalServerError, "failed to create confirmation")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"code":         confirmation.Code,
+		"status":       confirmation.Status,
+		"max_chat_id":  confirmation.MaxChatID,
+		"expires_at":   confirmation.ExpiresAt.Format(time.RFC3339),
+		"instructions": buildMaxChannelConfirmationInstructions(confirmation.Code),
+	})
 }
 
 // handleAPIChannels — GET /api/channels
@@ -739,10 +811,12 @@ func (b *Bridge) handleAPIChannelsPair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isAdminMax, err := b.CheckMaxAdmin(ctx, req.MaxChatID, owner.UserID)
-	if err != nil || !isAdminMax {
-		slog.Warn("API /channels/pair failed MaxAdmin check", "owner", owner.UserID, "maxChat", req.MaxChatID, "err", err)
-		writeError(w, http.StatusForbidden, "Вы не являетесь администратором в канале MAX или бот не добавлен")
+	_ = ctx
+	b.repo.ExpireMaxChannelConfirmations(time.Now().UTC())
+	confirmation, err := b.repo.GetUsableMaxChannelConfirmation(owner.UserID, req.MaxChatID, time.Now().UTC())
+	if err != nil {
+		slog.Warn("API /channels/pair missing MAX confirmation", "owner", owner.UserID, "maxChat", req.MaxChatID, "err", err)
+		writeError(w, http.StatusForbidden, "Сначала подтвердите владение MAX-каналом через код в личке MAX-боту")
 		return
 	}
 
@@ -763,6 +837,9 @@ func (b *Bridge) handleAPIChannelsPair(w http.ResponseWriter, r *http.Request) {
 		slog.Error("API /channels/pair failed", "err", err, "owner", owner.UserID)
 		writeError(w, http.StatusInternalServerError, "failed to create pair")
 		return
+	}
+	if err := b.repo.MarkMaxChannelConfirmationUsed(confirmation.ID, time.Now().UTC()); err != nil {
+		slog.Warn("API /channels/pair failed to mark confirmation used", "confirmationID", confirmation.ID, "err", err)
 	}
 
 	slog.Info("API /channels/pair created", "owner", owner.UserID, "platform", owner.Platform,
@@ -859,12 +936,12 @@ func (b *Bridge) handleAPIRequestAccess(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Отправляем уведомление администратору
-	msg := fmt.Sprintf("👋 Пользователь пытается войти!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать доступ, отправьте:\n<code>/sub_grant %d 30</code>", 
+	msg := fmt.Sprintf("👋 Пользователь пытается войти!\nИмя: %s (@%s)\nID: <code>%d</code>\nЧтобы выдать доступ, отправьте:\n<code>/sub_grant %d 30</code>",
 		strings.TrimSpace(safeName), safeUser, owner.UserID, owner.UserID)
 
 	b.notifyAdmin(r.Context(), msg)
 	slog.Info("API /request-access sent", "owner", owner.UserID, "platform", owner.Platform)
-	
+
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 
@@ -974,6 +1051,7 @@ func (b *Bridge) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tasks/history", b.handleAPITasksClearHistory)
 	mux.HandleFunc("/api/request-access", b.handleAPIRequestAccess)
 	mux.HandleFunc("/api/config", b.handleAPIConfig)
+	mux.HandleFunc("/api/max-channel/confirmations", b.handleAPIMaxChannelConfirmations)
 	// Sprint 4 Correction: Mini App управляет связками напрямую через API
 	mux.HandleFunc("/api/channels/pair", b.handleAPIChannelsPair)
 	mux.HandleFunc("/api/channels/delete", b.handleAPIChannelsDelete)

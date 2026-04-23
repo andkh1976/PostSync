@@ -2,6 +2,13 @@ package main
 
 import "time"
 
+const (
+	MaxChannelConfirmationStatusPending   = "pending"
+	MaxChannelConfirmationStatusConfirmed = "confirmed"
+	MaxChannelConfirmationStatusExpired   = "expired"
+	MaxChannelConfirmationStatusUsed      = "used"
+)
+
 // Replacement — одно правило замены текста.
 // Target: "" или "all" — весь текст, "links" — только ссылки.
 type Replacement struct {
@@ -15,6 +22,22 @@ type Replacement struct {
 type CrosspostReplacements struct {
 	TgToMax []Replacement `json:"tg>max,omitempty"`
 	MaxToTg []Replacement `json:"max>tg,omitempty"`
+}
+
+type MaxChannelConfirmation struct {
+	ID          int64      `json:"id"`
+	TgUserID    int64      `json:"tg_user_id"`
+	MaxChatID   int64      `json:"max_chat_id"`
+	Code        string     `json:"code"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	ConfirmedAt *time.Time `json:"confirmed_at,omitempty"`
+	UsedAt      *time.Time `json:"used_at,omitempty"`
+}
+
+func (c MaxChannelConfirmation) CanBeUsed(now time.Time) bool {
+	return c.Status == MaxChannelConfirmationStatusConfirmed && now.Before(c.ExpiresAt)
 }
 
 // CrosspostLink — одна связка кросспостинга.
@@ -97,6 +120,13 @@ type Repository interface {
 	// MAX known chats (чаты, в которых состоит MAX-бот)
 	UpsertMaxKnownChat(chat MaxKnownChat)
 	ListMaxKnownChats() []MaxKnownChat
+
+	CreateMaxChannelConfirmation(c MaxChannelConfirmation) (*MaxChannelConfirmation, error)
+	GetMaxChannelConfirmationByCode(code string) (*MaxChannelConfirmation, error)
+	GetUsableMaxChannelConfirmation(tgUserID, maxChatID int64, now time.Time) (*MaxChannelConfirmation, error)
+	MarkMaxChannelConfirmationConfirmed(code string, maxChatID int64, confirmedAt time.Time) (*MaxChannelConfirmation, error)
+	MarkMaxChannelConfirmationUsed(id int64, usedAt time.Time) error
+	ExpireMaxChannelConfirmations(now time.Time) error
 
 	// MTProto SaaS Sessions
 	GetMTProtoSession(userID int64) ([]byte, error)

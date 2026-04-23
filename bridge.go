@@ -97,6 +97,11 @@ type Bridge struct {
 	tgSeenMsgs [256]tgMsgKey // хранит последние 256 (chatID, msgID)
 	tgSeenHead int
 	tgSeenLen  int
+
+	// test hooks for handler tests
+	authMiddlewareFunc func(*http.Request) (*apiOwner, error)
+	checkAccessFunc    func(int64) bool
+	checkTgAdminFunc   func(int64, int64) (bool, error)
 }
 
 // tgMsgKey — ключ для дедупликации TG-сообщений.
@@ -281,6 +286,9 @@ func (b *Bridge) isCrosspostOwner(maxChatID, userID int64) bool {
 // Sprint 4: всегда возвращает true (полный доступ).
 // Реальная логика проверки даты закомментирована — включить одной строкой когда нужно.
 func (b *Bridge) checkAccess(userID int64) bool {
+	if b.checkAccessFunc != nil {
+		return b.checkAccessFunc(userID)
+	}
 	// Администратор имеет полный доступ всегда
 	if b.cfg.AdminChatID != 0 && userID == b.cfg.AdminChatID {
 		return true

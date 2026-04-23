@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	maxbot "github.com/max-messenger/max-bot-api-client-go"
 	maxschemes "github.com/max-messenger/max-bot-api-client-go/schemes"
@@ -146,7 +147,7 @@ func (b *Bridge) listenMax(ctx context.Context) {
 				//      "4. Готово!\n\n" +
 				//      "Поддержка: https://github.com/BEARlogin/max-telegram-bridge-bot/issues"
 				// Управление только через TG Mini App — в MAX ссылку не показываем
-				helpText += "\n\nКоманды MAX-бота:\n/chatid — узнать ID этого чата"
+				helpText += "\n\nКоманды MAX-бота:\n/chatid — узнать ID этого чата\n/confirm <CODE> <MAX_CHAT_ID> — подтвердить владение MAX-каналом"
 				m := maxbot.NewMessage().SetChat(chatID).SetText(helpText)
 				b.maxApi.Messages.Send(ctx, m)
 				continue
@@ -156,6 +157,56 @@ func (b *Bridge) listenMax(ctx context.Context) {
 			if text == "/chatid" {
 				m := maxbot.NewMessage().SetChat(chatID).SetText(
 					fmt.Sprintf("ID этого чата: %d\n\nИспользуйте его как «ID MAX-канала» в панели управления.", chatID))
+				b.maxApi.Messages.Send(ctx, m)
+				continue
+			}
+
+			if isDialog && strings.HasPrefix(strings.ToLower(text), "/confirm") {
+				code, targetChatID, ok := parseMaxChannelConfirmationCommand(text)
+				if !ok {
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Неверная команда. Используйте:\n/confirm MAX-XXXXXX <ID_MAX_КАНАЛА>")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+
+				confirmation, err := b.repo.GetMaxChannelConfirmationByCode(code)
+				if err != nil {
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Код подтверждения не найден или уже недействителен.")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+				if confirmation.Status != MaxChannelConfirmationStatusPending {
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Этот код уже использован или больше недействителен. Запросите новый код в панели управления.")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+				if time.Now().UTC().After(confirmation.ExpiresAt) {
+					b.repo.ExpireMaxChannelConfirmations(time.Now().UTC())
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Срок действия кода истёк. Запросите новый код в панели управления.")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+
+				admins, err := b.maxApi.Chats.GetChatAdmins(ctx, targetChatID)
+				if err != nil {
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Не удалось проверить канал. Убедитесь, что бот добавлен администратором в MAX-канал и ID указан верно.")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+				if msgUpd.Message.Sender.UserId == 0 || !isMaxUserAdmin(admins.Members, msgUpd.Message.Sender.UserId) {
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Вы не являетесь администратором указанного MAX-канала.")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+
+				confirmed, err := b.repo.MarkMaxChannelConfirmationConfirmed(code, targetChatID, time.Now().UTC())
+				if err != nil || confirmed == nil || confirmed.Status != MaxChannelConfirmationStatusConfirmed {
+					m := maxbot.NewMessage().SetChat(chatID).SetText("Не удалось подтвердить код. Попробуйте запросить новый код в панели управления.")
+					b.maxApi.Messages.Send(ctx, m)
+					continue
+				}
+
+				m := maxbot.NewMessage().SetChat(chatID).SetText(fmt.Sprintf("Подтверждение сохранено ✅\n\nMAX-канал %d подтверждён. Вернитесь в Telegram Mini App и снова нажмите «Создать связку».", targetChatID))
 				b.maxApi.Messages.Send(ctx, m)
 				continue
 			}

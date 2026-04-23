@@ -557,6 +557,116 @@ func (r *sqliteRepo) ListMaxKnownChats() []MaxKnownChat {
 	return chats
 }
 
+func (r *sqliteRepo) CreateMaxChannelConfirmation(c MaxChannelConfirmation) (*MaxChannelConfirmation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	res, err := r.db.Exec(
+		`INSERT INTO max_channel_confirmations (tg_user_id, max_chat_id, code, status, created_at, expires_at, confirmed_at, used_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.TgUserID, c.MaxChatID, c.Code, c.Status,
+		c.CreatedAt.Format(time.RFC3339), c.ExpiresAt.Format(time.RFC3339),
+		timePtrToRFC3339(c.ConfirmedAt), timePtrToRFC3339(c.UsedAt),
+	)
+	if err != nil {
+		return nil, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	c.ID = id
+	return &c, nil
+}
+
+func (r *sqliteRepo) GetMaxChannelConfirmationByCode(code string) (*MaxChannelConfirmation, error) {
+	return r.scanMaxChannelConfirmationRow(
+		r.db.QueryRow(`SELECT id, tg_user_id, max_chat_id, code, status, created_at, expires_at, confirmed_at, used_at
+			FROM max_channel_confirmations WHERE code = ? ORDER BY id DESC LIMIT 1`, code),
+	)
+}
+
+func (r *sqliteRepo) GetUsableMaxChannelConfirmation(tgUserID, maxChatID int64, now time.Time) (*MaxChannelConfirmation, error) {
+	return r.scanMaxChannelConfirmationRow(
+		r.db.QueryRow(`SELECT id, tg_user_id, max_chat_id, code, status, created_at, expires_at, confirmed_at, used_at
+			FROM max_channel_confirmations
+			WHERE tg_user_id = ? AND max_chat_id = ? AND status = ? AND expires_at > ?
+			ORDER BY confirmed_at DESC, id DESC LIMIT 1`,
+			tgUserID, maxChatID, MaxChannelConfirmationStatusConfirmed, now.Format(time.RFC3339)),
+	)
+}
+
+func (r *sqliteRepo) MarkMaxChannelConfirmationConfirmed(code string, maxChatID int64, confirmedAt time.Time) (*MaxChannelConfirmation, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, err := r.db.Exec(
+		`UPDATE max_channel_confirmations
+		 SET status = ?, max_chat_id = ?, confirmed_at = ?, used_at = NULL
+		 WHERE code = ? AND status = ? AND expires_at > ?`,
+		MaxChannelConfirmationStatusConfirmed, maxChatID, confirmedAt.Format(time.RFC3339),
+		code, MaxChannelConfirmationStatusPending, confirmedAt.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetMaxChannelConfirmationByCode(code)
+}
+
+func (r *sqliteRepo) MarkMaxChannelConfirmationUsed(id int64, usedAt time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, err := r.db.Exec(
+		`UPDATE max_channel_confirmations SET status = ?, used_at = ? WHERE id = ?`,
+		MaxChannelConfirmationStatusUsed, usedAt.Format(time.RFC3339), id,
+	)
+	return err
+}
+
+func (r *sqliteRepo) ExpireMaxChannelConfirmations(now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, err := r.db.Exec(
+		`UPDATE max_channel_confirmations SET status = ? WHERE status = ? AND expires_at <= ?`,
+		MaxChannelConfirmationStatusExpired, MaxChannelConfirmationStatusPending, now.Format(time.RFC3339),
+	)
+	return err
+}
+
+func (r *sqliteRepo) scanMaxChannelConfirmationRow(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*MaxChannelConfirmation, error) {
+	var c MaxChannelConfirmation
+	var createdAt string
+	var expiresAt string
+	var confirmedAt sql.NullString
+	var usedAt sql.NullString
+	err := scanner.Scan(&c.ID, &c.TgUserID, &c.MaxChatID, &c.Code, &c.Status, &createdAt, &expiresAt, &confirmedAt, &usedAt)
+	if err != nil {
+		return nil, err
+	}
+	c.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+	c.ExpiresAt, _ = time.Parse(time.RFC3339, expiresAt)
+	if confirmedAt.Valid {
+		t, err := time.Parse(time.RFC3339, confirmedAt.String)
+		if err == nil {
+			c.ConfirmedAt = &t
+		}
+	}
+	if usedAt.Valid {
+		t, err := time.Parse(time.RFC3339, usedAt.String)
+		if err == nil {
+			c.UsedAt = &t
+		}
+	}
+	return &c, nil
+}
+
+func timePtrToRFC3339(v *time.Time) interface{} {
+	if v == nil {
+		return nil
+	}
+	return v.Format(time.RFC3339)
+}
+
 func (r *sqliteRepo) GetMTProtoSession(userID int64) ([]byte, error) {
 	var data []byte
 	err := r.db.QueryRow("SELECT session_data FROM user_mtproto_sessions WHERE user_id = ?", userID).Scan(&data)

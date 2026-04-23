@@ -406,6 +406,26 @@
       margin-bottom: 10px;
     }
 
+    .info-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(37,99,235,0.06);
+      padding: 12px;
+      margin: 12px 0;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-line;
+    }
+
+    .mono-box {
+      font-family: 'Fira Code', monospace;
+      background: rgba(0,0,0,0.06);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-top: 8px;
+      word-break: break-word;
+    }
+
     .delete-btn {
       padding: 4px 10px;
       background: transparent;
@@ -553,6 +573,10 @@
       <input type="number" id="pair-max-id" class="input-field" placeholder="Например: 1234567" />
       <div style="font-size:11px;color:var(--muted);margin-top:4px">Добавьте бота в MAX-канал и напишите там /chatid, чтобы узнать ID</div>
     </div>
+    <button class="btn" id="btn-request-confirm" onclick="requestMaxConfirmation()" style="width:100%;margin-bottom:10px">
+      🔐 Получить код подтверждения MAX-канала
+    </button>
+    <div id="max-confirmation-box" class="info-box" style="display:none"></div>
     <button class="btn btn-primary" id="btn-add-pair" onclick="addPair()" style="width:100%">
       🔗 Создать связку
     </button>
@@ -895,6 +919,33 @@
       showStatus('pair-status', '✗ ' + e.message, 'err');
     } finally {
       setLoading('btn-add-pair', false);
+    }
+  }
+
+  async function requestMaxConfirmation() {
+    const maxID = parseInt(document.getElementById('pair-max-id').value, 10);
+    if (!maxID) return showStatus('pair-status', 'Введите ID MAX-канала', 'err');
+
+    setLoading('btn-request-confirm', true);
+    try {
+      const res = await apiFetch('/api/max-channel/confirmations', {
+        method: 'POST',
+        body: JSON.stringify({ max_chat_id: maxID }),
+      });
+
+      const box = document.getElementById('max-confirmation-box');
+      box.style.display = '';
+      box.innerHTML = `
+        <strong>Код подтверждения создан</strong><br>
+        Действует до: ${escHtml((res.expires_at || '').replace('T', ' ').replace('Z', ' UTC'))}
+        <div class="mono-box">${escHtml(res.code || '')}</div>
+        <div style="margin-top:8px">${escHtml(res.instructions || '')}</div>
+      `;
+      showStatus('pair-status', '✓ Код создан. Отправьте /confirm в личку MAX-боту, затем создайте связку.', 'ok');
+    } catch (e) {
+      showStatus('pair-status', '✗ ' + e.message, 'err');
+    } finally {
+      setLoading('btn-request-confirm', false);
     }
   }
 

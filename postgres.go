@@ -510,6 +510,77 @@ func (r *pgRepo) ListMaxKnownChats() []MaxKnownChat {
 	return chats
 }
 
+func (r *pgRepo) CreateMaxChannelConfirmation(c MaxChannelConfirmation) (*MaxChannelConfirmation, error) {
+	err := r.db.QueryRow(
+		`INSERT INTO max_channel_confirmations (tg_user_id, max_chat_id, code, status, created_at, expires_at, confirmed_at, used_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id`,
+		c.TgUserID, c.MaxChatID, c.Code, c.Status, c.CreatedAt, c.ExpiresAt, c.ConfirmedAt, c.UsedAt,
+	).Scan(&c.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (r *pgRepo) GetMaxChannelConfirmationByCode(code string) (*MaxChannelConfirmation, error) {
+	return r.scanMaxChannelConfirmationRow(
+		r.db.QueryRow(`SELECT id, tg_user_id, max_chat_id, code, status, created_at, expires_at, confirmed_at, used_at
+			FROM max_channel_confirmations WHERE code = $1 ORDER BY id DESC LIMIT 1`, code),
+	)
+}
+
+func (r *pgRepo) GetUsableMaxChannelConfirmation(tgUserID, maxChatID int64, now time.Time) (*MaxChannelConfirmation, error) {
+	return r.scanMaxChannelConfirmationRow(
+		r.db.QueryRow(`SELECT id, tg_user_id, max_chat_id, code, status, created_at, expires_at, confirmed_at, used_at
+			FROM max_channel_confirmations
+			WHERE tg_user_id = $1 AND max_chat_id = $2 AND status = $3 AND expires_at > $4
+			ORDER BY confirmed_at DESC NULLS LAST, id DESC LIMIT 1`,
+			tgUserID, maxChatID, MaxChannelConfirmationStatusConfirmed, now),
+	)
+}
+
+func (r *pgRepo) MarkMaxChannelConfirmationConfirmed(code string, maxChatID int64, confirmedAt time.Time) (*MaxChannelConfirmation, error) {
+	_, err := r.db.Exec(
+		`UPDATE max_channel_confirmations
+		 SET status = $1, max_chat_id = $2, confirmed_at = $3, used_at = NULL
+		 WHERE code = $4 AND status = $5 AND expires_at > $3`,
+		MaxChannelConfirmationStatusConfirmed, maxChatID, confirmedAt,
+		code, MaxChannelConfirmationStatusPending,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetMaxChannelConfirmationByCode(code)
+}
+
+func (r *pgRepo) MarkMaxChannelConfirmationUsed(id int64, usedAt time.Time) error {
+	_, err := r.db.Exec(
+		`UPDATE max_channel_confirmations SET status = $1, used_at = $2 WHERE id = $3`,
+		MaxChannelConfirmationStatusUsed, usedAt, id,
+	)
+	return err
+}
+
+func (r *pgRepo) ExpireMaxChannelConfirmations(now time.Time) error {
+	_, err := r.db.Exec(
+		`UPDATE max_channel_confirmations SET status = $1 WHERE status = $2 AND expires_at <= $3`,
+		MaxChannelConfirmationStatusExpired, MaxChannelConfirmationStatusPending, now,
+	)
+	return err
+}
+
+func (r *pgRepo) scanMaxChannelConfirmationRow(scanner interface {
+	Scan(dest ...interface{}) error
+}) (*MaxChannelConfirmation, error) {
+	var c MaxChannelConfirmation
+	err := scanner.Scan(&c.ID, &c.TgUserID, &c.MaxChatID, &c.Code, &c.Status, &c.CreatedAt, &c.ExpiresAt, &c.ConfirmedAt, &c.UsedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (r *pgRepo) GetMTProtoSession(userID int64) ([]byte, error) {
 	var data []byte
 	err := r.db.QueryRow("SELECT session_data FROM user_mtproto_sessions WHERE user_id = $1", userID).Scan(&data)

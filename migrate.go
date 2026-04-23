@@ -11,11 +11,12 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-//go:embed migrations/postgres/*.sql
-var postgresMigrationsFS embed.FS
+//go:embed migrations/postgres/*.sql migrations/sqlite/*.sql
+var migrationsFS embed.FS
 
 func runMigrations(db *sql.DB, driver string) error {
 	var (
@@ -26,9 +27,13 @@ func runMigrations(db *sql.DB, driver string) error {
 
 	switch driver {
 	case "postgres":
-		sourceFS = postgresMigrationsFS
+		sourceFS = migrationsFS
 		subdir = "migrations/postgres"
 		driverName = "postgres"
+	case "sqlite":
+		sourceFS = migrationsFS
+		subdir = "migrations/sqlite"
+		driverName = "sqlite"
 	default:
 		return fmt.Errorf("unsupported migration driver: %s", driver)
 	}
@@ -46,6 +51,8 @@ func runMigrations(db *sql.DB, driver string) error {
 	switch driverName {
 	case "postgres":
 		dbDriver, err = postgres.WithInstance(db, &postgres.Config{})
+	case "sqlite":
+		dbDriver, err = sqlite3.WithInstance(db, &sqlite3.Config{})
 	}
 	if err != nil {
 		return fmt.Errorf("migrate db driver: %w", err)
@@ -84,6 +91,12 @@ func maybeForceVersion(db *sql.DB, driver string) error {
                         INSERT INTO schema_migrations (version, dirty) VALUES (2, false);
                 `)
 		return err
+	case "sqlite":
+		_, err := db.Exec(`
+			CREATE TABLE IF NOT EXISTS schema_migrations (version bigint not null primary key, dirty boolean not null);
+			INSERT INTO schema_migrations (version, dirty) VALUES (2, false);
+		`)
+		return err
 	}
 	return nil
 }
@@ -93,6 +106,9 @@ func tableExists(db *sql.DB, driver, table string) bool {
 	switch driver {
 	case "postgres":
 		err := db.QueryRow("SELECT count(*) FROM information_schema.tables WHERE table_name=$1", table).Scan(&n)
+		return err == nil && n > 0
+	case "sqlite":
+		err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&n)
 		return err == nil && n > 0
 	}
 	return false
